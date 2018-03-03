@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Creator: CorelDRAW X8 -->
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" width="33mm" height="33mm" version="1.1" style="shape-rendering:geometricPrecision; text-rendering:geometricPrecision; image-rendering:optimizeQuality; fill-rule:evenodd; clip-rule:evenodd"
+viewBox="0 0 3300 3300"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+ <defs>
+  <style type="text/css">
+   <![CDATA[
+    .fil0 {fill:none}
+    .fil1 {fill:url(#id0);fill-rule:nonzero}
+   ]]>
+  </style>
+  <linearGradient id="id0" gradientUnits="userSpaceOnUse" x1="961.78" y1="360.7" x2="2866.51" y2="3594.25">
+   <stop offset="0" style="stop-opacity:1; stop-color:#00437B"/>
+   <stop offset="1" style="stop-opacity:1; stop-color:#00B8B0"/>
+  </linearGradient>
+ </defs>
+ <g id="Слой_x0020_1">
+  <metadata id="CorelCorpID_0Corel-Layer"/>
+  <rect class="fil0" width="3300" height="3300"/>
+  <path class="fil1" d="M753 531l1794 0c62,0 118,25 159,66l0 0c40,41 66,97 66,159l0 1788c0,62 -26,118 -66,159l-1 0c-40,41 -97,66 -158,66l-1794 0c-62,0 -118,-25 -159,-66l-2 -3c-39,-41 -64,-96 -64,-156l0 -1788c0,-62 26,-118 66,-159 41,-41 97,-66 159,-66zm633 1688c0,20 -8,39 -22,53l0 0c-13,13 -32,22 -53,22 -20,0 -39,-9 -53,-22 -13,-14 -22,-33 -22,-53l0 -1080c0,-20 9,-39 22,-53 14,-13 33,-22 53,-22l548 0c66,0 121,19 166,49 48,34 83,84 105,141 9,23 16,47 20,73 5,25 7,52 8,79 0,26 -2,52 -6,77 -3,26 -9,51 -16,76 -21,69 -57,132 -106,177 -45,42 -101,69 -166,73l-478 1 0 409zm0 -1005l0 446 471 0c30,-3 56,-18 77,-40 26,-26 46,-63 59,-104 5,-18 9,-36 11,-54 3,-19 4,-37 4,-55 0,-18 -1,-35 -5,-53 -2,-16 -7,-32 -12,-46l-2 -5c-11,-27 -27,-50 -50,-65 -21,-15 -47,-24 -80,-24l-473 0zm1161 -583l-1794 0c-34,0 -65,14 -88,37 -23,22 -37,53 -37,88l0 1788c0,34 14,64 35,86l2 2c23,23 54,37 88,37l1794 0c34,0 65,-14 88,-37l0 0c23,-22 37,-53 37,-88l0 -1788c0,-35 -14,-66 -37,-88l0 0c-23,-23 -54,-37 -88,-37z"/>
+ </g>
+</svg>
