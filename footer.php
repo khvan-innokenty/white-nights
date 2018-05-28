@@ -48,8 +48,8 @@
                 <a href="#" class="footer__social__link"><img class="footer__social__icon" src="/img/icons/social/vk.svg"></a>
                 <a href="#" class="footer__social__link"><img class="footer__social__icon" src="/img/icons/social/facebook.svg"></a>
                 <a href="#" class="footer__social__link"><img class="footer__social__icon" src="/img/icons/social/instagram.svg"></a>
-                <a href="#appointment-popup" class="button button--secondary footer__button js-show-popup">Позвоните мне!</a>
-                <button class="button button--outline button--white footer__button">Забронировать номер</button>
+                <a href="#appointment-popup" class="button button--secondary footer__button b24-web-form-popup-btn-20">Позвоните мне!</a>
+                <button class="button button--outline button--white footer__button  b24-web-form-popup-btn-26">Забронировать номер</button>
             </div>
         </footer>
         <div class="footer__disclaimer">О возможных противопоказаниях проконсультируйтесь со специалистом</div>
@@ -96,7 +96,7 @@
                     <li><a class="white" href="/about.php">Бассейн</a></li>
                 </ul>
                 <ul class="mobile-menu__menu">
-                    <li class="button"><a href="#appointment-popup" class="button button--secondary js-show-popup">Позвоните мне!</a></li>
+                    <li class="button"><a href="#appointment-popup" class="button button--secondary b24-web-form-popup-btn-20">Позвоните мне!</a></li>
                     <li><a class="white" href="/">Справочная информация</a></li>
                     <li><a class="white with-icon" href="/"><img src="/img/icons/download.svg"> Прейскурант</a></li>
                 </ul>
@@ -117,6 +117,28 @@
     <label for="legal-popup" class="appointment__checkbox__label">Я даю согласие на обработку персональных данных, с условиями <a href="/legal.php" target="_blank">Политики обработки и защиты персональных данных</a> ознакомлен.</label>
     <button class="button appointment__submit" type="submit" disabled><span class="text">Позвоните мне!</span></button>
 </form>
+
+<script id="bx24_form_button" data-skip-moving="true">
+    (function(w,d,u,b){w['Bitrix24FormObject']=b;w[b] = w[b] || function(){arguments[0].ref=u;
+        (w[b].forms=w[b].forms||[]).push(arguments[0])};
+        if(w[b]['forms']) return;
+        var s=d.createElement('script');s.async=1;s.src=u+'?'+(1*new Date());
+        var h=d.getElementsByTagName('script')[0];h.parentNode.insertBefore(s,h);
+    })(window,document,'https://wnspb.bitrix24.ru/bitrix/js/crm/form_loader.js','b24form');
+
+    b24form({"id":"26","lang":"ru","sec":"kriqfx","type":"button","click":""});
+</script>
+
+<script id="bx24_form_button" data-skip-moving="true">
+    (function(w,d,u,b){w['Bitrix24FormObject']=b;w[b] = w[b] || function(){arguments[0].ref=u;
+        (w[b].forms=w[b].forms||[]).push(arguments[0])};
+        if(w[b]['forms']) return;
+        var s=d.createElement('script');s.async=1;s.src=u+'?'+(1*new Date());
+        var h=d.getElementsByTagName('script')[0];h.parentNode.insertBefore(s,h);
+    })(window,document,'https://wnspb.bitrix24.ru/bitrix/js/crm/form_loader.js','b24form');
+
+    b24form({"id":"20","lang":"ru","sec":"b5k8n8","type":"button","click":""});
+</script>
 
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
 <script src="/js/app.min.js?v=<?=VER;?>"></script>

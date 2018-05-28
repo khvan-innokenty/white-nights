@@ -19,8 +19,15 @@
     <select name="duration" id="calculator-duration" class="calculator__input js-duration-select"></select>
 
     <label class="calculator__label" for="calculator-start">Дата заезда</label>
-    <input type="hidden" name="start" id="calculator-start" class="calculator__input js-start-select">
-    <div class="js-start-container"></div>
+    <div class="dp__container js-datepicker">
+        <ul class="dp__header cf">
+            <li class="prev">←</li><li class="next">→</li><li class="title"></li>
+        </ul>
+        <ul class="dp__title cf">
+            <li>Пн</li><li>Вт</li><li>Ср</li><li>Чт</li><li>Пт</li><li>Сб</li><li>Вс</li>
+        </ul>
+        <ul class="dp__matrix cf days"></ul>
+    </div>
 
     <div class="calculator__price__title">Стоимость на человека</div>
     <div class="calculator__price js-price">&nbsp;</div>

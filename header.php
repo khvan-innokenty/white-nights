@@ -17,7 +17,7 @@
     <meta name="description" content="">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, shrink-to-fit=no">
 
-    <link href="https://fonts.googleapis.com/css?family=Fira+Sans:300,400,700&amp;subset=cyrillic" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css?family=Fira+Sans+Condensed:300|Fira+Sans:300,400,700&amp;subset=cyrillic-ext" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css?v=<?=VER;?>">
     <link rel="icon" type="image/png" href="/img/favicon.png" />
 </head>

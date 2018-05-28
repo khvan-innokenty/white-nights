@@ -98,6 +98,15 @@
                         </div>
                     </a>
                 </div>
+                <div class="card2__wrapper">
+                    <a href="/about-thx.php" class="card2">
+                        <div class="card2__image" style="background-image: url('/img/legalities.jpg')"></div>
+                        <div class="card2__description">
+                            <div class="card2__title"><span>Нас поздравляют</span></div>
+                            <p>Грамоты, сертификаты, письма от наших партнёров, гостей и просто хороших людей.</p>
+                        </div>
+                    </a>
+                </div>
             </div>
         </div>
         <div class="top-gap"></div>

@@ -13,6 +13,7 @@
         <li><a href="/tours.php" class="white">Путёвки</a></li>
         <li><a href="/rooms.php" class="white">Проживание</a></li>
         <li><a href="/medicine.php" class="white">Медицина</a></li>
+        <li><button class="button button--secondary button--thin b24-web-form-popup-btn-26">Забронировать</button></li>
         <li>
             <button class="hamburger__button js-hamburger">
                 <i class="hamburger"><i class="l1"></i><i class="l2"></i><i class="l3"></i></i>

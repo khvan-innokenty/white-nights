@@ -1,1546 +1,388 @@
-/*!
- * Datepicker v0.6.4
- * https://github.com/fengyuanchen/datepicker
- *
- * Copyright (c) 2014-2017 Chen Fengyuan
- * Released under the MIT license
- *
- * Date: 2017-11-24T14:38:23.820Z
- */
+(function($){
+    var _months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'],
+        _oneDayInMs = 24 * 60 * 60 * 1000; // Один день в миллисекундах
 
-(function (global, factory) {
-    typeof exports === 'object' && typeof module !== 'undefined' ? factory(require('jquery')) :
-        typeof define === 'function' && define.amd ? define(['jquery'], factory) :
-            (factory(global.jQuery));
-}(this, (function ($) { 'use strict';
+    var $dp = $('.js-datepicker').first(),
+        $title = $dp.find('.title').first(),
+        $days = $dp.find('.days').first();
 
-    $ = $ && $.hasOwnProperty('default') ? $['default'] : $;
+    var currDate,       // Выбранная дата
+        currMonth,      // 0 - Январь, 1 - Февраль
+        currYear,       // Текущий год
+        operable,       // Калькулятор рабочий? Если нет ни одного корректного периода, то калькулятор работать не будет
+        allowedPeriods, // Допустимые диапазоны дат
+        duration = 1,   // Длительность путёвки
+        callback;       // Коллбэк при клике на дату
 
-    var DEFAULTS = {
-        // Show the datepicker automatically when initialized
-        autoShow: false,
-
-        // Hide the datepicker automatically when picked
-        autoHide: false,
-
-        // Pick the initial date automatically when initialized
-        autoPick: false,
-
-        // Enable inline mode
-        inline: false,
-
-        // A element (or selector) for putting the datepicker
-        container: null,
-
-        // A element (or selector) for triggering the datepicker
-        trigger: null,
-
-        // The ISO language code (built-in: en-US)
-        language: '',
-
-        // The date string format
-        format: 'mm/dd/yyyy',
-
-        // The initial date
-        date: null,
-
-        // The start view date
-        startDate: null,
-
-        // The end view date
-        endDate: null,
-
-        // The start view when initialized
-        startView: 0, // 0 for days, 1 for months, 2 for years
-
-        // The start day of the week
-        // 0 for Sunday, 1 for Monday, 2 for Tuesday, 3 for Wednesday,
-        // 4 for Thursday, 5 for Friday, 6 for Saturday
-        weekStart: 0,
-
-        // Show year before month on the datepicker header
-        yearFirst: false,
-
-        // A string suffix to the year number.
-        yearSuffix: '',
-
-        // Days' name of the week.
-        days: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
-
-        // Shorter days' name
-        daysShort: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-
-        // Shortest days' name
-        daysMin: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
-
-        // Months' name
-        months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
-
-        // Shorter months' name
-        monthsShort: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
-
-        // A element tag for each item of years, months and days
-        itemTag: 'li',
-
-        // A class (CSS) for muted date item
-        mutedClass: 'muted',
-
-        // A class (CSS) for picked date item
-        pickedClass: 'picked',
-
-        // A class (CSS) for disabled date item
-        disabledClass: 'disabled',
-
-        // A class (CSS) for highlight date item
-        highlightedClass: 'highlighted',
-
-        // The template of the datepicker
-        template: '<div class="datepicker-container">' + '<div class="datepicker-panel" data-view="years picker">' + '<ul>' + '<li data-view="years prev">&lsaquo;</li>' + '<li data-view="years current"></li>' + '<li data-view="years next">&rsaquo;</li>' + '</ul>' + '<ul data-view="years"></ul>' + '</div>' + '<div class="datepicker-panel" data-view="months picker">' + '<ul>' + '<li data-view="year prev">&lsaquo;</li>' + '<li data-view="year current"></li>' + '<li data-view="year next">&rsaquo;</li>' + '</ul>' + '<ul data-view="months"></ul>' + '</div>' + '<div class="datepicker-panel" data-view="days picker">' + '<ul>' + '<li data-view="month prev">&lsaquo;</li>' + '<li data-view="month current"></li>' + '<li data-view="month next">&rsaquo;</li>' + '</ul>' + '<ul data-view="week"></ul>' + '<ul data-view="days"></ul>' + '</div>' + '</div>',
-
-        // The offset top or bottom of the datepicker from the element
-        offset: 10,
-
-        // The `z-index` of the datepicker
-        zIndex: 1000,
-
-        // Filter each date item (return `false` to disable a date item)
-        filter: null,
-
-        // Event shortcuts
-        show: null,
-        hide: null,
-        pick: null
-    };
-
-    var WINDOW = typeof window !== 'undefined' ? window : {};
-    var NAMESPACE = 'datepicker';
-    var EVENT_CLICK = 'click.' + NAMESPACE;
-    var EVENT_FOCUS = 'focus.' + NAMESPACE;
-    var EVENT_HIDE = 'hide.' + NAMESPACE;
-    var EVENT_KEYUP = 'keyup.' + NAMESPACE;
-    var EVENT_PICK = 'pick.' + NAMESPACE;
-    var EVENT_RESIZE = 'resize.' + NAMESPACE;
-    var EVENT_SHOW = 'show.' + NAMESPACE;
-    var CLASS_HIDE = NAMESPACE + '-hide';
-    var LANGUAGES = {};
-    var VIEWS = {
-        DAYS: 0,
-        MONTHS: 1,
-        YEARS: 2
-    };
-
-    var toString = Object.prototype.toString;
-
-
-    function typeOf(obj) {
-        return toString.call(obj).slice(8, -1).toLowerCase();
-    }
-
-    function isString(value) {
-        return typeof value === 'string';
-    }
-
-    var isNaN = Number.isNaN || WINDOW.isNaN;
-
-    function isNumber(value) {
-        return typeof value === 'number' && !isNaN(value);
-    }
-
-    function isUndefined(value) {
-        return typeof value === 'undefined';
-    }
-
-    function isDate(value) {
-        return typeOf(value) === 'date';
-    }
-
-    function proxy(fn, context) {
-        for (var _len = arguments.length, args = Array(_len > 2 ? _len - 2 : 0), _key = 2; _key < _len; _key++) {
-            args[_key - 2] = arguments[_key];
+    $dp.click(function(e){
+        var $target = $(e.target).first();
+        if ($target.hasClass('next')) {
+            currMonth++;
+            if (currMonth > 11) {
+                currMonth = 0;
+                currYear++;
+            }
+            $.sogazDatePicker.render();
+            return;
         }
 
-        return function () {
-            for (var _len2 = arguments.length, args2 = Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
-                args2[_key2] = arguments[_key2];
+        if ($target.hasClass('prev')) {
+            currMonth--;
+            if (currMonth < 0) {
+                currMonth = 11;
+                currYear--;
             }
-
-            return fn.apply(context, args.concat(args2));
-        };
-    }
-
-    function selectorOf(view) {
-        return '[data-view="' + view + '"]';
-    }
-
-    function isLeapYear(year) {
-        return year % 4 === 0 && year % 100 !== 0 || year % 400 === 0;
-    }
-
-    function getDaysInMonth(year, month) {
-        return [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month];
-    }
-
-    function getMinDay(year, month, day) {
-        return Math.min(day, getDaysInMonth(year, month));
-    }
-
-    var formatParts = /(y|m|d)+/g;
-
-    function parseFormat(format) {
-        var source = String(format).toLowerCase();
-        var parts = source.match(formatParts);
-
-        if (!parts || parts.length === 0) {
-            throw new Error('Invalid date format.');
+            $.sogazDatePicker.render();
+            return;
         }
 
-        format = {
-            source: source,
-            parts: parts
-        };
+        if (!$target.hasClass('day')) return;
 
-        $.each(parts, function (i, part) {
-            switch (part) {
-                case 'dd':
-                case 'd':
-                    format.hasDay = true;
-                    break;
+        $.sogazDatePicker.setTime( $target.data('time') );
+    });
 
-                case 'mm':
-                case 'm':
-                    format.hasMonth = true;
-                    break;
-
-                case 'yyyy':
-                case 'yy':
-                    format.hasYear = true;
-                    break;
-
-                default:
-            }
-        });
-
-        return format;
+    function nowTime() {
+        var now = new Date();
+        now.setHours(0, 0, 0, 0);
+        return now.getTime();
     }
 
-    var REGEXP_DIGITS = /\d+/g;
+    function tomorrowTime() {
+        return nowTime() + _oneDayInMs;
+    }
 
-    var methods = {
-        // Show the datepicker
-        show: function show() {
-            if (!this.built) {
-                this.build();
-            }
-
-            if (this.shown) {
-                return;
-            }
-
-            if (this.trigger(EVENT_SHOW).isDefaultPrevented()) {
-                return;
-            }
-
-            this.shown = true;
-            this.$picker.removeClass(CLASS_HIDE).on(EVENT_CLICK, $.proxy(this.click, this));
-            this.showView(this.options.startView);
-
-            if (!this.inline) {
-                $(window).on(EVENT_RESIZE, this.onResize = proxy(this.place, this));
-                $(document).on(EVENT_CLICK, this.onGlobalClick = proxy(this.globalClick, this));
-                $(document).on(EVENT_KEYUP, this.onGlobalKeyup = proxy(this.globalKeyup, this));
-                this.place();
-            }
+    $.sogazDatePicker = {
+        // Инициализировать
+        init: function() {
+            currDate = new Date( tomorrowTime() );
+            currMonth = currDate.getMonth();
+            currYear = currDate.getFullYear();
+            operable = false;
+            callback = null;
+            allowedPeriods = [];
+            this.render();
         },
 
+        // Установить дату заезда
+        setTime: function (time) {
+            var now = nowTime(),
+                durationInMs = (duration - 1)*_oneDayInMs;
 
-        // Hide the datepicker
-        hide: function hide() {
-            if (!this.shown) {
-                return;
+            time = parseInt(time);
+
+            while (!$.sogazDatePicker.isAllowedPeriod(time, time + durationInMs) && time >= now)
+                time -= _oneDayInMs;
+
+            if (time > now) {
+                currDate.setTime( parseInt(time) );
+                this.render();
+                return true;
             }
 
-            if (this.trigger(EVENT_HIDE).isDefaultPrevented()) {
-                return;
-            }
-
-            this.shown = false;
-            this.$picker.addClass(CLASS_HIDE).off(EVENT_CLICK, this.click);
-
-            if (!this.inline) {
-                $(window).off(EVENT_RESIZE, this.onResize);
-                $(document).off(EVENT_CLICK, this.onGlobalClick);
-                $(document).off(EVENT_KEYUP, this.onGlobalKeyup);
-            }
-        },
-        toggle: function toggle() {
-            if (this.shown) {
-                this.hide();
-            } else {
-                this.show();
-            }
+            return false;
         },
 
+        // Добавить период
+        addPeriod: function (startTime, endTime, price) {
+            var _from,
+                _to,
+                durationInMs = (duration - 1) * _oneDayInMs;
 
-        // Update the datepicker with the current input value
-        update: function update() {
-            var value = this.getValue();
+            startTime = parseInt(startTime);
+            endTime = parseInt(endTime);
 
-            if (value === this.oldValue) {
-                return;
-            }
+            _from = Math.max(tomorrowTime(), Math.min(startTime, endTime));
+            _to = Math.max(startTime, endTime);
 
-            this.setDate(value, true);
-            this.oldValue = value;
-        },
-
-
-        /**
-         * Pick the current date to the element
-         *
-         * @param {String} _view (private)
-         */
-        pick: function pick(_view) {
-            var $this = this.$element;
-            var date = this.date;
-
-
-            if (this.trigger(EVENT_PICK, {
-                    view: _view || '',
-                    date: date
-                }).isDefaultPrevented()) {
-                return;
-            }
-
-            date = this.formatDate(this.date);
-            this.setValue(date);
-
-            if (this.isInput) {
-                $this.trigger('input');
-                $this.trigger('change');
-            }
-        },
-
-
-        // Reset the datepicker
-        reset: function reset() {
-            this.setDate(this.initialDate, true);
-            this.setValue(this.initialValue);
-
-            if (this.shown) {
-                this.showView(this.options.startView);
-            }
-        },
-
-
-        /**
-         * Get the month name with given argument or the current date
-         *
-         * @param {Number} month (optional)
-         * @param {Boolean} short (optional)
-         * @return {String} (month name)
-         */
-        getMonthName: function getMonthName(month, short) {
-            var options = this.options;
-            var monthsShort = options.monthsShort;
-            var months = options.months;
-
-
-            if ($.isNumeric(month)) {
-                month = Number(month);
-            } else if (isUndefined(short)) {
-                short = month;
-            }
-
-            if (short === true) {
-                months = monthsShort;
-            }
-
-            return months[isNumber(month) ? month : this.date.getMonth()];
-        },
-
-
-        /**
-         * Get the day name with given argument or the current date
-         *
-         * @param {Number} day (optional)
-         * @param {Boolean} short (optional)
-         * @param {Boolean} min (optional)
-         * @return {String} (day name)
-         */
-        getDayName: function getDayName(day, short, min) {
-            var options = this.options;
-            var days = options.days;
-
-
-            if ($.isNumeric(day)) {
-                day = Number(day);
-            } else {
-                if (isUndefined(min)) {
-                    min = short;
-                }
-
-                if (isUndefined(short)) {
-                    short = day;
-                }
-            }
-
-            if (min) {
-                days = options.daysMin;
-            } else if (short) {
-                days = options.daysShort;
-            }
-
-            return days[isNumber(day) ? day : this.date.getDay()];
-        },
-
-
-        /**
-         * Get the current date
-         *
-         * @param {Boolean} formatted (optional)
-         * @return {Date|String} (date)
-         */
-        getDate: function getDate(formatted) {
-            var date = this.date;
-
-
-            return formatted ? this.formatDate(date) : new Date(date);
-        },
-
-
-        /**
-         * Set the current date with a new date
-         *
-         * @param {Date} date
-         * @param {Boolean} _updated (private)
-         */
-        setDate: function setDate(date, _updated) {
-            var filter = this.options.filter;
-
-
-            if (isDate(date) || isString(date)) {
-                date = this.parseDate(date);
-
-                if ($.isFunction(filter) && filter.call(this.$element, date) === false) {
-                    return;
-                }
-
-                this.date = date;
-                this.viewDate = new Date(date);
-
-                if (!_updated) {
-                    this.pick();
-                }
-
-                if (this.built) {
-                    this.render();
-                }
-            }
-        },
-
-
-        /**
-         * Set the start view date with a new date
-         *
-         * @param {Date} date
-         */
-        setStartDate: function setStartDate(date) {
-            if (isDate(date) || isString(date)) {
-                this.startDate = this.parseDate(date);
-
-                if (this.built) {
-                    this.render();
-                }
-            }
-        },
-
-
-        /**
-         * Set the end view date with a new date
-         *
-         * @param {Date} date
-         */
-        setEndDate: function setEndDate(date) {
-            if (isDate(date) || isString(date)) {
-                this.endDate = this.parseDate(date);
-
-                if (this.built) {
-                    this.render();
-                }
-            }
-        },
-
-
-        /**
-         * Parse a date string with the set date format
-         *
-         * @param {String} date
-         * @return {Date} (parsed date)
-         */
-        parseDate: function parseDate(date) {
-            var format = this.format;
-
-            var parts = [];
-
-            if (isDate(date)) {
-                return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-            } else if (isString(date)) {
-                parts = date.match(REGEXP_DIGITS) || [];
-            }
-
-            date = new Date();
-
-            var length = format.parts.length;
-
-            var year = date.getFullYear();
-            var day = date.getDate();
-            var month = date.getMonth();
-
-            if (parts.length === length) {
-                $.each(parts, function (i, part) {
-                    var value = parseInt(part, 10) || 1;
-
-                    switch (format.parts[i]) {
-                        case 'dd':
-                        case 'd':
-                            day = value;
-                            break;
-
-                        case 'mm':
-                        case 'm':
-                            month = value - 1;
-                            break;
-
-                        case 'yy':
-                            year = 2000 + value;
-                            break;
-
-                        case 'yyyy':
-                            year = value;
-                            break;
-
-                        default:
-                    }
+            // Если длительность периода больше или равна длительности пребывания
+            if ( _to - _from >= durationInMs ) {
+                allowedPeriods.push({
+                    from: _from,
+                    to: _to,
+                    price: parseInt(price)
                 });
+                operable = true;
+                return true;
             }
 
-            return new Date(year, month, day);
+            return false;
         },
 
+        // Очистить периоды
+        clearPeriods: function() {
+            allowedPeriods = [];
+            operable = false;
+        },
 
-        /**
-         * Format a date object to a string with the set date format
-         *
-         * @param {Date} date
-         * @return {String} (formatted date)
-         */
-        formatDate: function formatDate(date) {
-            var format = this.format;
+        // Эта дата доступна?
+        isAllowedTime: function (time) {
+            time = parseInt(time);
+            for (var i=0; i<allowedPeriods.length; i++) {
+                if (time >= allowedPeriods[i].from && time <= allowedPeriods[i].to) return true;
+            }
+            return false;
+        },
 
-            var formatted = '';
+        // Этот период доступен?
+        isAllowedPeriod: function(startTime, endTime) {
+            startTime = parseInt(startTime);
+            endTime = parseInt(endTime);
+            var time = startTime;
 
-            if (isDate(date)) {
-                var year = date.getFullYear();
-                var values = {
-                    d: date.getDate(),
-                    m: date.getMonth() + 1,
-                    yy: year.toString().substring(2),
-                    yyyy: year
-                };
-
-                values.dd = (values.d < 10 ? '0' : '') + values.d;
-                values.mm = (values.m < 10 ? '0' : '') + values.m;
-                formatted = format.source;
-                $.each(format.parts, function (i, part) {
-                    formatted = formatted.replace(part, values[part]);
-                });
+            while (time <= endTime) {
+                if (!this.isAllowedTime(time)) return false;
+                time += _oneDayInMs;
             }
 
-            return formatted;
+            return true;
         },
 
+        // Получить стоимость одного дня
+        getPriceByTime: function (time) {
+            time = parseInt(time);
+            for (var i=0; i<allowedPeriods.length; i++) {
+                if (time >= allowedPeriods[i].from && time <= allowedPeriods[i].to) return allowedPeriods[i].price;
+            }
+            return null;
+        },
 
-        // Destroy the datepicker and remove the instance from the target element
-        destroy: function destroy() {
-            this.unbind();
-            this.unbuild();
-            this.$element.removeData(NAMESPACE);
+        // Получить полную стоимость
+        getTotalPrice: function() {
+            var total_price = 0,
+                price,
+                checkInTime = currDate.getTime(),
+                checkOutTime = checkInTime + (duration - 1) * _oneDayInMs,
+                time = checkInTime;
+
+            while (time <= checkOutTime) {
+                price = this.getPriceByTime( time );
+                if (price === null) return null;
+                total_price += price;
+                time += _oneDayInMs;
+            }
+
+            return total_price;
+        },
+
+        // Установить длительность
+        setDuration: function( new_duration ) {
+            duration = Math.max(parseInt(new_duration), 1);
+            this.render();
+        },
+
+        setCallback: function ( new_callback ) {
+            callback = new_callback
+        },
+
+        // Рендер
+        render: function () {
+            var html = '',
+                startDate = new Date(currYear, currMonth, 1), // Первый день выбранного месяца
+                endDate =  new Date(currYear, currMonth + 1, 0), // Последний день выбранного месяца
+                startDateDOF = startDate.getDay(), // День недели первого дня, 0 - Вс, 1 - Пн, 2 - Вт
+                endDateDOF = endDate.getDay(), // День недели первого дня, 0 - Вс, 1 - Пн, 2 - Вт
+                timeDiff, // Разница во времени
+                checkInTime = currDate.getTime(),
+                checkOutTime = checkInTime + (duration - 1) * _oneDayInMs,
+                checkInOutCorrect = this.isAllowedPeriod(checkInTime, checkOutTime);
+
+            // Задаём заголовок
+            $title.html(_months[currMonth] + ' ' + currYear);
+
+            // Пересчитываем на российский формат: воскресенье - последний день недели
+            if (startDateDOF === 0) startDateDOF = 7; // 1 - Пн, 2 - Вт, ..., 7 - Вс
+            if (endDateDOF === 0) endDateDOF = 7; // 1 - Пн, 2 - Вт, ..., 7 - Вс
+
+            // Высчитываем понедельник
+            timeDiff = (startDateDOF - 1) * _oneDayInMs; // разница в миллисекундах между Понедельником и startDate
+            startDate.setTime( startDate.getTime() - timeDiff);
+
+            // Высчитываем воскресенье
+            timeDiff = (7 - endDateDOF) * _oneDayInMs; // разница в миллисекундах между endDate и Воскресенье
+            endDate.setTime( endDate.getTime() + timeDiff);
+
+            // Генерируем HTML
+            while (startDate.getTime() <= endDate.getTime()) {
+                var cls = ['day'],
+                    time = startDate.getTime(),
+                    priceHMTL = '';
+
+                if (startDate.getMonth() !== currMonth) cls.push('not-current-month');
+                if (!this.isAllowedTime(time)) cls.push('disabled');
+
+                if (operable && checkInOutCorrect) {
+                    if (time === checkInTime) cls.push('check-in');
+                    if (time > checkInTime && time < checkOutTime) cls.push('stay');
+                    if (time === checkOutTime) cls.push('check-out');
+
+                    if (time >= checkInTime && time <= checkOutTime) {
+                        var price = this.getPriceByTime( time );
+                        if (price)
+                            priceHMTL = '<span class="price">' + price.toFixed().replace(/(\d)(?=(\d{3})+(,|$))/g, '$1 ') + ' &#8381;</span>';
+                    }
+                }
+
+                html += '<li class="' + cls.join(' ') + '" data-time="' + startDate.getTime() + '">' + startDate.getDate() + priceHMTL + '</li>';
+                startDate.setTime( startDate.getTime() + _oneDayInMs);
+            }
+
+            $days.html( html );
+
+            if (typeof callback === 'function') callback.call();
         }
     };
 
-    var handlers = {
-        click: function click(e) {
-            var $target = $(e.target);
-            var options = this.options,
-                viewDate = this.viewDate,
-                format = this.format;
+    $.sogazDatePicker.init();
+})(jQuery);
+(function($){
+    var $calc = $(".js-calculator").first(),
+        $tour = $calc.find('.js-tour-select').first(),
+        $room = $calc.find('.js-room-select').first(),
+        $alone = $calc.find('.js-alone'),
+        $comment = $calc.find('.js-comment').first(),
+        $duration = $('.js-duration-select'),
+        $price = $calc.find('.js-price').first();
 
 
-            e.stopPropagation();
-            e.preventDefault();
+    function declOfNum(number, titles) {
+        var cases = [2, 0, 1, 1, 1, 2];
+        return titles[ (number%100>4 && number%100<20)? 2 : cases[(number%10<5)?number%10:5] ];
+    }
 
-            if ($target.hasClass('disabled')) {
+
+    function generateDurations() {
+        var cTour = parseInt($tour.val());
+
+        $duration.html('');
+
+        for (i=0; i<_TOURS_.length; i++) {
+            if (_TOURS_[i].id === cTour) {
+                for (j=0; j<_TOURS_[i].durations.length; j++) {
+                    var duration = _TOURS_[i].durations[j];
+                    $duration.append('<option value="' + duration + '">' + duration + ' ' + declOfNum(duration, ['день', 'дня', 'дней']) + '</option>');
+                }
+            }
+        }
+    }
+
+    $.sogazCalculator = {
+        // Инициализация
+        init: function() {
+            var i;
+
+            if (typeof _TOURS_ === 'undefined' || typeof _ROOMS_ === 'undefined') {
+                $calc.hide();
+                $duration.hide();
                 return;
             }
 
-            var view = $target.data('view');
-            var viewYear = viewDate.getFullYear();
-            var viewMonth = viewDate.getMonth();
-            var viewDay = viewDate.getDate();
-
-            switch (view) {
-                case 'years prev':
-                case 'years next':
-                {
-                    viewYear = view === 'years prev' ? viewYear - 10 : viewYear + 10;
-                    this.viewDate = new Date(viewYear, viewMonth, getMinDay(viewYear, viewMonth, viewDay));
-                    this.renderYears();
-                    break;
-                }
-
-                case 'year prev':
-                case 'year next':
-                    viewYear = view === 'year prev' ? viewYear - 1 : viewYear + 1;
-                    this.viewDate = new Date(viewYear, viewMonth, getMinDay(viewYear, viewMonth, viewDay));
-                    this.renderMonths();
-                    break;
-
-                case 'year current':
-                    if (format.hasYear) {
-                        this.showView(VIEWS.YEARS);
-                    }
-
-                    break;
-
-                case 'year picked':
-                    if (format.hasMonth) {
-                        this.showView(VIEWS.MONTHS);
-                    } else {
-                        $target.addClass(options.pickedClass).siblings().removeClass(options.pickedClass);
-                        this.hideView();
-                    }
-
-                    this.pick('year');
-                    break;
-
-                case 'year':
-                    viewYear = parseInt($target.text(), 10);
-                    this.date = new Date(viewYear, viewMonth, getMinDay(viewYear, viewMonth, viewDay));
-
-                    if (format.hasMonth) {
-                        this.viewDate = new Date(this.date);
-                        this.showView(VIEWS.MONTHS);
-                    } else {
-                        $target.addClass(options.pickedClass).siblings().removeClass(options.pickedClass);
-                        this.hideView();
-                    }
-
-                    this.pick('year');
-                    break;
-
-                case 'month prev':
-                case 'month next':
-                    viewMonth = view === 'month prev' ? viewMonth - 1 : viewMonth + 1;
-
-                    if (viewMonth < 0) {
-                        viewYear -= 1;
-                        viewMonth += 12;
-                    } else if (viewMonth > 11) {
-                        viewYear += 1;
-                        viewMonth -= 12;
-                    }
-
-                    this.viewDate = new Date(viewYear, viewMonth, getMinDay(viewYear, viewMonth, viewDay));
-                    this.renderDays();
-                    break;
-
-                case 'month current':
-                    if (format.hasMonth) {
-                        this.showView(VIEWS.MONTHS);
-                    }
-
-                    break;
-
-                case 'month picked':
-                    if (format.hasDay) {
-                        this.showView(VIEWS.DAYS);
-                    } else {
-                        $target.addClass(options.pickedClass).siblings().removeClass(options.pickedClass);
-                        this.hideView();
-                    }
-
-                    this.pick('month');
-                    break;
-
-                case 'month':
-                    viewMonth = $.inArray($target.text(), options.monthsShort);
-                    this.date = new Date(viewYear, viewMonth, getMinDay(viewYear, viewMonth, viewDay));
-
-                    if (format.hasDay) {
-                        this.viewDate = new Date(viewYear, viewMonth, getMinDay(viewYear, viewMonth, viewDay));
-                        this.showView(VIEWS.DAYS);
-                    } else {
-                        $target.addClass(options.pickedClass).siblings().removeClass(options.pickedClass);
-                        this.hideView();
-                    }
-
-                    this.pick('month');
-                    break;
-
-                case 'day prev':
-                case 'day next':
-                case 'day':
-                    if (view === 'day prev') {
-                        viewMonth -= 1;
-                    } else if (view === 'day next') {
-                        viewMonth += 1;
-                    }
-
-                    viewDay = parseInt($target.text(), 10);
-                    this.date = new Date(viewYear, viewMonth, viewDay);
-                    this.viewDate = new Date(viewYear, viewMonth, viewDay);
-                    this.renderDays();
-
-                    if (view === 'day') {
-                        this.hideView();
-                    }
-
-                    this.pick('day');
-                    break;
-
-                case 'day picked':
-                    this.hideView();
-                    this.pick('day');
-                    break;
-
-                default:
-            }
-        },
-        globalClick: function globalClick(_ref) {
-            var target = _ref.target;
-            var element = this.element,
-                $trigger = this.$trigger;
-
-            var trigger = $trigger[0];
-            var hidden = true;
-
-            while (target !== document) {
-                if (target === trigger || target === element) {
-                    hidden = false;
-                    break;
-                }
-
-                target = target.parentNode;
+            // Заполняем калькулятор данными по номерам
+            for (i=0; i<_ROOMS_.length; i++) {
+                _ROOMS_[i].id = parseInt(_ROOMS_[i].id);
+                $room.append('<option value="' + _ROOMS_[i].id + '">' + _ROOMS_[i].title + '</option>');
             }
 
-            if (hidden) {
-                this.hide();
+            // Фиксируем выбранный номер, если надо
+            if (typeof _FIXED_ROOM_ID !== 'undefined') {
+                $room.prop('disabled', true);
+                $room.val(_FIXED_ROOM_ID);
             }
-        },
-        keyup: function keyup() {
-            this.update();
-        },
-        globalKeyup: function globalKeyup(_ref2) {
-            var target = _ref2.target,
-                key = _ref2.key,
-                keyCode = _ref2.keyCode;
 
-            if (this.isInput && target !== this.element && this.shown && (key === 'Tab' || keyCode === 9)) {
-                this.hide();
+            // Заполняем калькулятор данными по путёвкам
+            for (i=0; i<_TOURS_.length; i++) {
+                _TOURS_[i].id = parseInt(_TOURS_[i].id);
+                $tour.append('<option value="' + _TOURS_[i].id + '">' + _TOURS_[i].title + '</option>');
             }
-        }
-    };
 
-    var render = {
-        render: function render() {
-            this.renderYears();
-            this.renderMonths();
-            this.renderDays();
-        },
-        renderWeek: function renderWeek() {
-            var _this = this;
+            // Фиксируем выбранную путёвку, если надо
+            if (typeof _FIXED_TOUR_ID !== 'undefined') {
+                $tour.prop('disabled', true);
+                $tour.val(_FIXED_TOUR_ID);
+            }
 
-            var items = [];
-            var _options = this.options,
-                weekStart = _options.weekStart,
-                daysMin = _options.daysMin;
+            generateDurations();
 
-
-            weekStart = parseInt(weekStart, 10) % 7;
-            daysMin = daysMin.slice(weekStart).concat(daysMin.slice(0, weekStart));
-            $.each(daysMin, function (i, day) {
-                items.push(_this.createItem({
-                    text: day
-                }));
+            // Смена длительности проживания
+            $duration.change(function(){
+                var duration = parseInt($(this).val());
+                // скрываем все таблицы
+                $(".js-services-table").addClass('hidden');
+                // показываем таблицу с выбранной продолжительностью
+                $('#duration-' + duration ).removeClass('hidden');
+                // изменяем значение всех селекторов, где есть выбор длительности
+                $duration.val( duration );
+                // Задаём длительность в селекторе дат
+                $.sogazCalculator.render();
             });
 
-            this.$week.html(items.join(''));
-        },
-        renderYears: function renderYears() {
-            var options = this.options,
-                startDate = this.startDate,
-                endDate = this.endDate;
-            var disabledClass = options.disabledClass,
-                filter = options.filter,
-                yearSuffix = options.yearSuffix;
-
-            var viewYear = this.viewDate.getFullYear();
-            var now = new Date();
-            var thisYear = now.getFullYear();
-            var year = this.date.getFullYear();
-            var start = -5;
-            var end = 6;
-            var items = [];
-            var prevDisabled = false;
-            var nextDisabled = false;
-            var i = void 0;
-
-            for (i = start; i <= end; i += 1) {
-                var date = new Date(viewYear + i, 1, 1);
-                var disabled = false;
-
-                if (startDate) {
-                    disabled = date.getFullYear() < startDate.getFullYear();
-
-                    if (i === start) {
-                        prevDisabled = disabled;
-                    }
-                }
-
-                if (!disabled && endDate) {
-                    disabled = date.getFullYear() > endDate.getFullYear();
-
-                    if (i === end) {
-                        nextDisabled = disabled;
-                    }
-                }
-
-                if (!disabled && filter) {
-                    disabled = filter.call(this.$element, date) === false;
-                }
-
-                var picked = viewYear + i === year;
-                var view = picked ? 'year picked' : 'year';
-
-                items.push(this.createItem({
-                    picked: picked,
-                    disabled: disabled,
-                    muted: i === start || i === end,
-                    text: viewYear + i,
-                    view: disabled ? 'year disabled' : view,
-                    highlighted: date.getFullYear() === thisYear
-                }));
-            }
-
-            this.$yearsPrev.toggleClass(disabledClass, prevDisabled);
-            this.$yearsNext.toggleClass(disabledClass, nextDisabled);
-            this.$yearsCurrent.toggleClass(disabledClass, true).html(viewYear + start + yearSuffix + ' - ' + (viewYear + end) + yearSuffix);
-            this.$years.html(items.join(''));
-        },
-        renderMonths: function renderMonths() {
-            var options = this.options,
-                startDate = this.startDate,
-                endDate = this.endDate,
-                viewDate = this.viewDate;
-
-            var disabledClass = options.disabledClass || '';
-            var months = options.monthsShort;
-            var filter = $.isFunction(options.filter) && options.filter;
-            var viewYear = viewDate.getFullYear();
-            var now = new Date();
-            var thisYear = now.getFullYear();
-            var thisMonth = now.getMonth();
-            var year = this.date.getFullYear();
-            var month = this.date.getMonth();
-            var items = [];
-            var prevDisabled = false;
-            var nextDisabled = false;
-            var i = void 0;
-
-            for (i = 0; i <= 11; i += 1) {
-                var date = new Date(viewYear, i, 1);
-                var disabled = false;
-
-                if (startDate) {
-                    prevDisabled = date.getFullYear() === startDate.getFullYear();
-                    disabled = prevDisabled && date.getMonth() < startDate.getMonth();
-                }
-
-                if (!disabled && endDate) {
-                    nextDisabled = date.getFullYear() === endDate.getFullYear();
-                    disabled = nextDisabled && date.getMonth() > endDate.getMonth();
-                }
-
-                if (!disabled && filter) {
-                    disabled = filter.call(this.$element, date) === false;
-                }
-
-                var picked = viewYear === year && i === month;
-                var view = picked ? 'month picked' : 'month';
-
-                items.push(this.createItem({
-                    disabled: disabled,
-                    picked: picked,
-                    highlighted: viewYear === thisYear && date.getMonth() === thisMonth,
-                    index: i,
-                    text: months[i],
-                    view: disabled ? 'month disabled' : view
-                }));
-            }
-
-            this.$yearPrev.toggleClass(disabledClass, prevDisabled);
-            this.$yearNext.toggleClass(disabledClass, nextDisabled);
-            this.$yearCurrent.toggleClass(disabledClass, prevDisabled && nextDisabled).html(viewYear + options.yearSuffix || '');
-            this.$months.html(items.join(''));
-        },
-        renderDays: function renderDays() {
-            var $element = this.$element,
-                options = this.options,
-                startDate = this.startDate,
-                endDate = this.endDate,
-                viewDate = this.viewDate,
-                currentDate = this.date;
-            var disabledClass = options.disabledClass,
-                filter = options.filter,
-                monthsShort = options.monthsShort,
-                weekStart = options.weekStart,
-                yearSuffix = options.yearSuffix;
-
-            var viewYear = viewDate.getFullYear();
-            var viewMonth = viewDate.getMonth();
-            var now = new Date();
-            var thisYear = now.getFullYear();
-            var thisMonth = now.getMonth();
-            var thisDay = now.getDate();
-            var year = currentDate.getFullYear();
-            var month = currentDate.getMonth();
-            var day = currentDate.getDate();
-            var length = void 0;
-            var i = void 0;
-            var n = void 0;
-
-            // Days of prev month
-            // -----------------------------------------------------------------------
-
-            var prevItems = [];
-            var prevViewYear = viewYear;
-            var prevViewMonth = viewMonth;
-            var prevDisabled = false;
-
-            if (viewMonth === 0) {
-                prevViewYear -= 1;
-                prevViewMonth = 11;
-            } else {
-                prevViewMonth -= 1;
-            }
-
-            // The length of the days of prev month
-            length = getDaysInMonth(prevViewYear, prevViewMonth);
-
-            // The first day of current month
-            var firstDay = new Date(viewYear, viewMonth, 1);
-
-            // The visible length of the days of prev month
-            // [0,1,2,3,4,5,6] - [0,1,2,3,4,5,6] => [-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6]
-            n = firstDay.getDay() - parseInt(weekStart, 10) % 7;
-
-            // [-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6] => [1,2,3,4,5,6,7]
-            if (n <= 0) {
-                n += 7;
-            }
-
-            if (startDate) {
-                prevDisabled = firstDay.getTime() <= startDate.getTime();
-            }
-
-            for (i = length - (n - 1); i <= length; i += 1) {
-                var prevViewDate = new Date(prevViewYear, prevViewMonth, i);
-                var disabled = false;
-
-                if (startDate) {
-                    disabled = prevViewDate.getTime() < startDate.getTime();
-                }
-
-                if (!disabled && filter) {
-                    disabled = filter.call($element, prevViewDate) === false;
-                }
-
-                prevItems.push(this.createItem({
-                    disabled: disabled,
-                    highlighted: prevViewYear === thisYear && prevViewMonth === thisMonth && prevViewDate.getDate() === thisDay,
-                    muted: true,
-                    picked: prevViewYear === year && prevViewMonth === month && i === day,
-                    text: i,
-                    view: 'day prev'
-                }));
-            }
-
-            // Days of next month
-            // -----------------------------------------------------------------------
-
-            var nextItems = [];
-            var nextViewYear = viewYear;
-            var nextViewMonth = viewMonth;
-            var nextDisabled = false;
-
-            if (viewMonth === 11) {
-                nextViewYear += 1;
-                nextViewMonth = 0;
-            } else {
-                nextViewMonth += 1;
-            }
-
-            // The length of the days of current month
-            length = getDaysInMonth(viewYear, viewMonth);
-
-            // The visible length of next month (42 means 6 rows and 7 columns)
-            n = 42 - (prevItems.length + length);
-
-            // The last day of current month
-            var lastDate = new Date(viewYear, viewMonth, length);
-
-            if (endDate) {
-                nextDisabled = lastDate.getTime() >= endDate.getTime();
-            }
-
-            for (i = 1; i <= n; i += 1) {
-                var date = new Date(nextViewYear, nextViewMonth, i);
-                var picked = nextViewYear === year && nextViewMonth === month && i === day;
-                var _disabled = false;
-
-                if (endDate) {
-                    _disabled = date.getTime() > endDate.getTime();
-                }
-
-                if (!_disabled && filter) {
-                    _disabled = filter.call($element, date) === false;
-                }
-
-                nextItems.push(this.createItem({
-                    disabled: _disabled,
-                    picked: picked,
-                    highlighted: nextViewYear === thisYear && nextViewMonth === thisMonth && date.getDate() === thisDay,
-                    muted: true,
-                    text: i,
-                    view: 'day next'
-                }));
-            }
-
-            // Days of current month
-            // -----------------------------------------------------------------------
-
-            var items = [];
-
-            for (i = 1; i <= length; i += 1) {
-                var _date = new Date(viewYear, viewMonth, i);
-                var _disabled2 = false;
-
-                if (startDate) {
-                    _disabled2 = _date.getTime() < startDate.getTime();
-                }
-
-                if (!_disabled2 && endDate) {
-                    _disabled2 = _date.getTime() > endDate.getTime();
-                }
-
-                if (!_disabled2 && filter) {
-                    _disabled2 = filter.call($element, _date) === false;
-                }
-
-                var _picked = viewYear === year && viewMonth === month && i === day;
-                var view = _picked ? 'day picked' : 'day';
-
-                items.push(this.createItem({
-                    disabled: _disabled2,
-                    picked: _picked,
-                    highlighted: viewYear === thisYear && viewMonth === thisMonth && _date.getDate() === thisDay,
-                    text: i,
-                    view: _disabled2 ? 'day disabled' : view
-                }));
-            }
-
-            // Render days picker
-            // -----------------------------------------------------------------------
-
-            this.$monthPrev.toggleClass(disabledClass, prevDisabled);
-            this.$monthNext.toggleClass(disabledClass, nextDisabled);
-            this.$monthCurrent.toggleClass(disabledClass, prevDisabled && nextDisabled).html(options.yearFirst ? viewYear + yearSuffix + ' ' + monthsShort[viewMonth] : monthsShort[viewMonth] + ' ' + viewYear + yearSuffix);
-            this.$days.html(prevItems.join('') + items.join('') + nextItems.join(''));
-        }
-    };
-
-    var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-    function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-// Classes
-    var CLASS_TOP_LEFT = NAMESPACE + '-top-left';
-    var CLASS_TOP_RIGHT = NAMESPACE + '-top-right';
-    var CLASS_BOTTOM_LEFT = NAMESPACE + '-bottom-left';
-    var CLASS_BOTTOM_RIGHT = NAMESPACE + '-bottom-right';
-    var CLASS_PLACEMENTS = [CLASS_TOP_LEFT, CLASS_TOP_RIGHT, CLASS_BOTTOM_LEFT, CLASS_BOTTOM_RIGHT].join(' ');
-
-    var Datepicker = function () {
-        function Datepicker(element) {
-            var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
-
-            _classCallCheck(this, Datepicker);
-
-            this.$element = $(element);
-            this.element = element;
-            this.options = $.extend({}, DEFAULTS, LANGUAGES[options.language], options);
-            this.built = false;
-            this.shown = false;
-            this.isInput = false;
-            this.inline = false;
-            this.initialValue = '';
-            this.initialDate = null;
-            this.startDate = null;
-            this.endDate = null;
-            this.init();
-        }
-
-        _createClass(Datepicker, [{
-            key: 'init',
-            value: function init() {
-                var $this = this.$element,
-                    options = this.options;
-                var startDate = options.startDate,
-                    endDate = options.endDate,
-                    date = options.date;
-
-
-                this.$trigger = $(options.trigger);
-                this.isInput = $this.is('input') || $this.is('textarea');
-                this.inline = options.inline && (options.container || !this.isInput);
-                this.format = parseFormat(options.format);
-
-                var initialValue = this.getValue();
-
-                this.initialValue = initialValue;
-                this.oldValue = initialValue;
-                date = this.parseDate(date || initialValue);
-
-                if (startDate) {
-                    startDate = this.parseDate(startDate);
-
-                    if (date.getTime() < startDate.getTime()) {
-                        date = new Date(startDate);
-                    }
-
-                    this.startDate = startDate;
-                }
-
-                if (endDate) {
-                    endDate = this.parseDate(endDate);
-
-                    if (startDate && endDate.getTime() < startDate.getTime()) {
-                        endDate = new Date(startDate);
-                    }
-
-                    if (date.getTime() > endDate.getTime()) {
-                        date = new Date(endDate);
-                    }
-
-                    this.endDate = endDate;
-                }
-
-                this.date = date;
-                this.viewDate = new Date(date);
-                this.initialDate = new Date(this.date);
-                this.bind();
-
-                if (options.autoShow || this.inline) {
-                    this.show();
-                }
-
-                if (options.autoPick) {
-                    this.pick();
-                }
-            }
-        }, {
-            key: 'build',
-            value: function build() {
-                if (this.built) {
-                    return;
-                }
-
-                this.built = true;
-
-                var $this = this.$element,
-                    options = this.options;
-
-                var $picker = $(options.template);
-
-                this.$picker = $picker;
-                this.$week = $picker.find(selectorOf('week'));
-
-                // Years view
-                this.$yearsPicker = $picker.find(selectorOf('years picker'));
-                this.$yearsPrev = $picker.find(selectorOf('years prev'));
-                this.$yearsNext = $picker.find(selectorOf('years next'));
-                this.$yearsCurrent = $picker.find(selectorOf('years current'));
-                this.$years = $picker.find(selectorOf('years'));
-
-                // Months view
-                this.$monthsPicker = $picker.find(selectorOf('months picker'));
-                this.$yearPrev = $picker.find(selectorOf('year prev'));
-                this.$yearNext = $picker.find(selectorOf('year next'));
-                this.$yearCurrent = $picker.find(selectorOf('year current'));
-                this.$months = $picker.find(selectorOf('months'));
-
-                // Days view
-                this.$daysPicker = $picker.find(selectorOf('days picker'));
-                this.$monthPrev = $picker.find(selectorOf('month prev'));
-                this.$monthNext = $picker.find(selectorOf('month next'));
-                this.$monthCurrent = $picker.find(selectorOf('month current'));
-                this.$days = $picker.find(selectorOf('days'));
-
-                if (this.inline) {
-                    $(options.container || $this).append($picker.addClass(NAMESPACE + '-inline'));
+            $alone.change(function(){
+                $.sogazCalculator.render();
+            });
+
+            $room.change(function(){
+                $.sogazCalculator.render();
+            });
+
+            $tour.change(function(){
+                generateDurations();
+                $.sogazCalculator.render();
+            });
+
+            $.sogazDatePicker.setCallback(function(){
+                var total_price = $.sogazDatePicker.getTotalPrice();
+
+                if ( total_price === null ) {
+                    $price.html('Ошибка');
                 } else {
-                    $(document.body).append($picker.addClass(NAMESPACE + '-dropdown'));
-                    $picker.addClass(CLASS_HIDE);
-                }
-
-                this.renderWeek();
-            }
-        }, {
-            key: 'unbuild',
-            value: function unbuild() {
-                if (!this.built) {
-                    return;
-                }
-
-                this.built = false;
-                this.$picker.remove();
-            }
-        }, {
-            key: 'bind',
-            value: function bind() {
-                var options = this.options,
-                    $this = this.$element;
-
-
-                if ($.isFunction(options.show)) {
-                    $this.on(EVENT_SHOW, options.show);
-                }
-
-                if ($.isFunction(options.hide)) {
-                    $this.on(EVENT_HIDE, options.hide);
-                }
-
-                if ($.isFunction(options.pick)) {
-                    $this.on(EVENT_PICK, options.pick);
-                }
-
-                if (this.isInput) {
-                    $this.on(EVENT_KEYUP, $.proxy(this.keyup, this));
-                }
-
-                if (!this.inline) {
-                    if (options.trigger) {
-                        this.$trigger.on(EVENT_CLICK, $.proxy(this.toggle, this));
-                    } else if (this.isInput) {
-                        $this.on(EVENT_FOCUS, $.proxy(this.show, this));
-                    } else {
-                        $this.on(EVENT_CLICK, $.proxy(this.show, this));
-                    }
-                }
-            }
-        }, {
-            key: 'unbind',
-            value: function unbind() {
-                var $this = this.$element,
-                    options = this.options;
-
-
-                if ($.isFunction(options.show)) {
-                    $this.off(EVENT_SHOW, options.show);
-                }
-
-                if ($.isFunction(options.hide)) {
-                    $this.off(EVENT_HIDE, options.hide);
-                }
-
-                if ($.isFunction(options.pick)) {
-                    $this.off(EVENT_PICK, options.pick);
-                }
-
-                if (this.isInput) {
-                    $this.off(EVENT_KEYUP, this.keyup);
-                }
-
-                if (!this.inline) {
-                    if (options.trigger) {
-                        this.$trigger.off(EVENT_CLICK, this.toggle);
-                    } else if (this.isInput) {
-                        $this.off(EVENT_FOCUS, this.show);
-                    } else {
-                        $this.off(EVENT_CLICK, this.show);
-                    }
-                }
-            }
-        }, {
-            key: 'showView',
-            value: function showView(view) {
-                var $yearsPicker = this.$yearsPicker,
-                    $monthsPicker = this.$monthsPicker,
-                    $daysPicker = this.$daysPicker,
-                    format = this.format;
-
-
-                if (format.hasYear || format.hasMonth || format.hasDay) {
-                    switch (Number(view)) {
-                        case VIEWS.YEARS:
-                            $monthsPicker.addClass(CLASS_HIDE);
-                            $daysPicker.addClass(CLASS_HIDE);
-
-                            if (format.hasYear) {
-                                this.renderYears();
-                                $yearsPicker.removeClass(CLASS_HIDE);
-                                this.place();
-                            } else {
-                                this.showView(VIEWS.DAYS);
-                            }
-
-                            break;
-
-                        case VIEWS.MONTHS:
-                            $yearsPicker.addClass(CLASS_HIDE);
-                            $daysPicker.addClass(CLASS_HIDE);
-
-                            if (format.hasMonth) {
-                                this.renderMonths();
-                                $monthsPicker.removeClass(CLASS_HIDE);
-                                this.place();
-                            } else {
-                                this.showView(VIEWS.YEARS);
-                            }
-
-                            break;
-
-                        // case VIEWS.DAYS:
-                        default:
-                            $yearsPicker.addClass(CLASS_HIDE);
-                            $monthsPicker.addClass(CLASS_HIDE);
-
-                            if (format.hasDay) {
-                                this.renderDays();
-                                $daysPicker.removeClass(CLASS_HIDE);
-                                this.place();
-                            } else {
-                                this.showView(VIEWS.MONTHS);
-                            }
-                    }
-                }
-            }
-        }, {
-            key: 'hideView',
-            value: function hideView() {
-                if (!this.inline && this.options.autoHide) {
-                    this.hide();
-                }
-            }
-        }, {
-            key: 'place',
-            value: function place() {
-                if (this.inline) {
-                    return;
-                }
-
-                var $this = this.$element,
-                    options = this.options,
-                    $picker = this.$picker;
-
-                var containerWidth = $(document).outerWidth();
-                var containerHeight = $(document).outerHeight();
-                var elementWidth = $this.outerWidth();
-                var elementHeight = $this.outerHeight();
-                var width = $picker.width();
-                var height = $picker.height();
-
-                var _$this$offset = $this.offset(),
-                    left = _$this$offset.left,
-                    top = _$this$offset.top;
-
-                var offset = parseFloat(options.offset);
-                var placement = CLASS_TOP_LEFT;
-
-                if (isNaN(offset)) {
-                    offset = 10;
-                }
-
-                if (top > height && top + elementHeight + height > containerHeight) {
-                    top -= height + offset;
-                    placement = CLASS_BOTTOM_LEFT;
-                } else {
-                    top += elementHeight + offset;
-                }
-
-                if (left + width > containerWidth) {
-                    left += elementWidth - width;
-                    placement = placement.replace('left', 'right');
-                }
-
-                $picker.removeClass(CLASS_PLACEMENTS).addClass(placement).css({
-                    top: top,
-                    left: left,
-                    zIndex: parseInt(options.zIndex, 10)
-                });
-            }
-
-            // A shortcut for triggering custom events
-
-        }, {
-            key: 'trigger',
-            value: function trigger(type, data) {
-                var e = $.Event(type, data);
-
-                this.$element.trigger(e);
-
-                return e;
-            }
-        }, {
-            key: 'createItem',
-            value: function createItem(data) {
-                var options = this.options;
-                var itemTag = options.itemTag;
-
-                var item = {
-                    text: '',
-                    view: '',
-                    muted: false,
-                    picked: false,
-                    disabled: false,
-                    highlighted: false
-                };
-                var classes = [];
-
-                $.extend(item, data);
-
-                if (item.muted) {
-                    classes.push(options.mutedClass);
-                }
-
-                if (item.highlighted) {
-                    classes.push(options.highlightedClass);
-                }
-
-                if (item.picked) {
-                    classes.push(options.pickedClass);
-                }
-
-                if (item.disabled) {
-                    classes.push(options.disabledClass);
-                }
-
-                return '<' + itemTag + ' class="' + classes.join(' ') + '" data-view="' + item.view + '">' + item.text + '</' + itemTag + '>';
-            }
-        }, {
-            key: 'getValue',
-            value: function getValue() {
-                var $this = this.$element;
-
-                return this.isInput ? $this.val() : $this.text();
-            }
-        }, {
-            key: 'setValue',
-            value: function setValue() {
-                var value = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : '';
-
-                var $this = this.$element;
-
-                if (this.isInput) {
-                    $this.val(value);
-                } else {
-                    $this.text(value);
-                }
-            }
-        }], [{
-            key: 'setDefaults',
-            value: function setDefaults() {
-                var options = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
-
-                $.extend(DEFAULTS, LANGUAGES[options.language], options);
-            }
-        }]);
-
-        return Datepicker;
-    }();
-
-    if ($.extend) {
-        $.extend(Datepicker.prototype, render, handlers, methods);
-    }
-
-    if ($.fn) {
-        var AnotherDatepicker = $.fn.datepicker;
-
-        $.fn.datepicker = function jQueryDatepicker(option) {
-            for (var _len = arguments.length, args = Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
-                args[_key - 1] = arguments[_key];
-            }
-
-            var result = void 0;
-
-            this.each(function (i, element) {
-                var $element = $(element);
-                var data = $element.data(NAMESPACE);
-
-                if (!data) {
-                    if (/destroy/.test(option)) {
-                        return;
-                    }
-
-                    var options = $.extend({}, $element.data(), $.isPlainObject(option) && option);
-
-                    data = new Datepicker(element, options);
-                    $element.data(NAMESPACE, data);
-                }
-
-                if (isString(option)) {
-                    var fn = data[option];
-
-                    if ($.isFunction(fn)) {
-                        result = fn.apply(data, args);
-                    }
+                    $price.html(total_price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + ' &#8381;');
                 }
             });
 
-            return isUndefined(result) ? this : result;
-        };
+            $duration.trigger('change');
+            this.render();
+        },
 
-        $.fn.datepicker.Constructor = Datepicker;
-        $.fn.datepicker.languages = LANGUAGES;
-        $.fn.datepicker.setDefaults = Datepicker.setDefaults;
-        $.fn.datepicker.noConflict = function noConflict() {
-            $.fn.datepicker = AnotherDatepicker;
-            return this;
-        };
-    }
+        // Рендер
+        render: function() {
+            var cRoom = parseInt($room.val()), // Текущий номер
+                cTour = parseInt($tour.val()), // Текущая путёвка
+                cAlone = $alone.is(":checked"),
+                i, j;
 
-})));
-(function (global, factory) {
-    typeof exports === 'object' && typeof module !== 'undefined' ? factory(require('jquery')) :
-        typeof define === 'function' && define.amd ? define(['jquery'], factory) :
-            (factory(global.jQuery));
-}(this, (function ($) {
+            $alone.prop('disabled', false);
+            for (i=0; i<_ROOMS_.length; i++) {
+                if (_ROOMS_[i].id === cRoom) {
+                    $comment.html(_ROOMS_[i].comment);
+                    if (_ROOMS_[i].max_persons < 2)
+                        $alone.prop('disabled', true).prop('checked', true);
+                }
+            }
 
-    'use strict';
+            $.sogazDatePicker.clearPeriods();
 
-    $.fn.datepicker.languages['ru-RU'] = {
-        format: 'dd.mm.YYYY',
-        days: ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'],
-        daysShort: ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'],
-        daysMin: ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'],
-        months: ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'],
-        monthsShort: ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'],
-        weekStart: 1,
-        startView: 0,
-        yearFirst: false,
-        yearSuffix: ''
+            for (i=0; i<_TOURS_.length; i++) {
+                if (_TOURS_[i].id === cTour) {
+                    for (j=0; j<_TOURS_[i].prices.length; j++) {
+                        var room  = parseInt(_TOURS_[i].prices[j].room),
+                            _from = new Date(_TOURS_[i].prices[j].from),
+                            _to   = new Date(_TOURS_[i].prices[j].to),
+                            price = _TOURS_[i].prices[j].price,
+                            alone = _TOURS_[i].prices[j].alone;
+
+                        _from.setHours(0, 0, 0, 0);
+                        _to.setHours(0, 0, 0, 0);
+
+                        if (room === cRoom && cAlone === alone)
+                            $.sogazDatePicker.addPeriod(_from.getTime(), _to.getTime(), price);
+                    }
+                }
+            }
+
+            $.sogazDatePicker.setDuration( $duration.val() );
+            $.sogazDatePicker.render();
+        }
     };
-})));
+})(jQuery);
 (function (factory) {
     if (typeof define === 'function' && define.amd) {
         // AMD. Register as an anonymous module.
@@ -2109,6 +951,11 @@ function(){try{"title"===event.propertyName&&(a.document.title=f.title)}catch(b)
 (function(d){d.rsProto._g7=function(){var a=this;a.st.visibleNearby&&a.st.visibleNearby.enabled&&(a._h7={enabled:!0,centerArea:.6,center:!0,breakpoint:0,breakpointCenterArea:.8,hiddenOverflow:!0,navigateByCenterClick:!1},a.st.visibleNearby=d.extend({},a._h7,a.st.visibleNearby),a.ev.one("rsAfterPropsSetup",function(){a._i7=a._e1.css("overflow","visible").wrap('<div class="rsVisibleNearbyWrap"></div>').parent();a.st.visibleNearby.hiddenOverflow||a._i7.css("overflow","visible");a._o1=a.st.controlsInside?
 a._i7:a.slider}),a.ev.on("rsAfterSizePropSet",function(){var b,c=a.st.visibleNearby;b=c.breakpoint&&a.width<c.breakpoint?c.breakpointCenterArea:c.centerArea;a._h?(a._b4*=b,a._i7.css({height:a._c4,width:a._b4/b}),a._d=a._b4*(1-b)/2/b):(a._c4*=b,a._i7.css({height:a._c4/b,width:a._b4}),a._d=a._c4*(1-b)/2/b);c.navigateByCenterClick||(a._q=a._h?a._b4:a._c4);c.center&&a._e1.css("margin-"+(a._h?"left":"top"),a._d)}))};d.rsModules.visibleNearby=d.rsProto._g7})(jQuery);
 
+/*! lightgallery - v1.6.11 - 2018-05-22
+* http://sachinchoolur.github.io/lightGallery/
+* Copyright (c) 2018 Sachin N; Licensed GPLv3 */
+!function(a,b){"function"==typeof define&&define.amd?define(["jquery"],function(a){return b(a)}):"object"==typeof module&&module.exports?module.exports=b(require("jquery")):b(a.jQuery)}(this,function(a){!function(){"use strict";function b(b,d){if(this.el=b,this.$el=a(b),this.s=a.extend({},c,d),this.s.dynamic&&"undefined"!==this.s.dynamicEl&&this.s.dynamicEl.constructor===Array&&!this.s.dynamicEl.length)throw"When using dynamic mode, you must also define dynamicEl as an Array.";return this.modules={},this.lGalleryOn=!1,this.lgBusy=!1,this.hideBartimeout=!1,this.isTouch="ontouchstart"in document.documentElement,this.s.slideEndAnimatoin&&(this.s.hideControlOnEnd=!1),this.s.dynamic?this.$items=this.s.dynamicEl:"this"===this.s.selector?this.$items=this.$el:""!==this.s.selector?this.s.selectWithin?this.$items=a(this.s.selectWithin).find(this.s.selector):this.$items=this.$el.find(a(this.s.selector)):this.$items=this.$el.children(),this.$slide="",this.$outer="",this.init(),this}var c={mode:"lg-slide",cssEasing:"ease",easing:"linear",speed:600,height:"100%",width:"100%",addClass:"",startClass:"lg-start-zoom",backdropDuration:150,hideBarsDelay:6e3,useLeft:!1,closable:!0,loop:!0,escKey:!0,keyPress:!0,controls:!0,slideEndAnimatoin:!0,hideControlOnEnd:!1,mousewheel:!0,getCaptionFromTitleOrAlt:!0,appendSubHtmlTo:".lg-sub-html",subHtmlSelectorRelative:!1,preload:1,showAfterLoad:!0,selector:"",selectWithin:"",nextHtml:"",prevHtml:"",index:!1,iframeMaxWidth:"100%",download:!0,counter:!0,appendCounterTo:".lg-toolbar",swipeThreshold:50,enableSwipe:!0,enableDrag:!0,dynamic:!1,dynamicEl:[],galleryId:1};b.prototype.init=function(){var b=this;b.s.preload>b.$items.length&&(b.s.preload=b.$items.length);var c=window.location.hash;c.indexOf("lg="+this.s.galleryId)>0&&(b.index=parseInt(c.split("&slide=")[1],10),a("body").addClass("lg-from-hash"),a("body").hasClass("lg-on")||(setTimeout(function(){b.build(b.index)}),a("body").addClass("lg-on"))),b.s.dynamic?(b.$el.trigger("onBeforeOpen.lg"),b.index=b.s.index||0,a("body").hasClass("lg-on")||setTimeout(function(){b.build(b.index),a("body").addClass("lg-on")})):b.$items.on("click.lgcustom",function(c){try{c.preventDefault(),c.preventDefault()}catch(a){c.returnValue=!1}b.$el.trigger("onBeforeOpen.lg"),b.index=b.s.index||b.$items.index(this),a("body").hasClass("lg-on")||(b.build(b.index),a("body").addClass("lg-on"))})},b.prototype.build=function(b){var c=this;c.structure(),a.each(a.fn.lightGallery.modules,function(b){c.modules[b]=new a.fn.lightGallery.modules[b](c.el)}),c.slide(b,!1,!1,!1),c.s.keyPress&&c.keyPress(),c.$items.length>1?(c.arrow(),setTimeout(function(){c.enableDrag(),c.enableSwipe()},50),c.s.mousewheel&&c.mousewheel()):c.$slide.on("click.lg",function(){c.$el.trigger("onSlideClick.lg")}),c.counter(),c.closeGallery(),c.$el.trigger("onAfterOpen.lg"),c.$outer.on("mousemove.lg click.lg touchstart.lg",function(){c.$outer.removeClass("lg-hide-items"),clearTimeout(c.hideBartimeout),c.hideBartimeout=setTimeout(function(){c.$outer.addClass("lg-hide-items")},c.s.hideBarsDelay)}),c.$outer.trigger("mousemove.lg")},b.prototype.structure=function(){var b,c="",d="",e=0,f="",g=this;for(a("body").append('<div class="lg-backdrop"></div>'),a(".lg-backdrop").css("transition-duration",this.s.backdropDuration+"ms"),e=0;e<this.$items.length;e++)c+='<div class="lg-item"></div>';if(this.s.controls&&this.$items.length>1&&(d='<div class="lg-actions"><button class="lg-prev lg-icon">'+this.s.prevHtml+'</button><button class="lg-next lg-icon">'+this.s.nextHtml+"</button></div>"),".lg-sub-html"===this.s.appendSubHtmlTo&&(f='<div class="lg-sub-html"></div>'),b='<div class="lg-outer '+this.s.addClass+" "+this.s.startClass+'"><div class="lg" style="width:'+this.s.width+"; height:"+this.s.height+'"><div class="lg-inner">'+c+'</div><div class="lg-toolbar lg-group"><span class="lg-close lg-icon"></span></div>'+d+f+"</div></div>",a("body").append(b),this.$outer=a(".lg-outer"),this.$slide=this.$outer.find(".lg-item"),this.s.useLeft?(this.$outer.addClass("lg-use-left"),this.s.mode="lg-slide"):this.$outer.addClass("lg-use-css3"),g.setTop(),a(window).on("resize.lg orientationchange.lg",function(){setTimeout(function(){g.setTop()},100)}),this.$slide.eq(this.index).addClass("lg-current"),this.doCss()?this.$outer.addClass("lg-css3"):(this.$outer.addClass("lg-css"),this.s.speed=0),this.$outer.addClass(this.s.mode),this.s.enableDrag&&this.$items.length>1&&this.$outer.addClass("lg-grab"),this.s.showAfterLoad&&this.$outer.addClass("lg-show-after-load"),this.doCss()){var h=this.$outer.find(".lg-inner");h.css("transition-timing-function",this.s.cssEasing),h.css("transition-duration",this.s.speed+"ms")}setTimeout(function(){a(".lg-backdrop").addClass("in")}),setTimeout(function(){g.$outer.addClass("lg-visible")},this.s.backdropDuration),this.s.download&&this.$outer.find(".lg-toolbar").append('<a id="lg-download" target="_blank" download class="lg-download lg-icon"></a>'),this.prevScrollTop=a(window).scrollTop()},b.prototype.setTop=function(){if("100%"!==this.s.height){var b=a(window).height(),c=(b-parseInt(this.s.height,10))/2,d=this.$outer.find(".lg");b>=parseInt(this.s.height,10)?d.css("top",c+"px"):d.css("top","0px")}},b.prototype.doCss=function(){return!!function(){var a=["transition","MozTransition","WebkitTransition","OTransition","msTransition","KhtmlTransition"],b=document.documentElement,c=0;for(c=0;c<a.length;c++)if(a[c]in b.style)return!0}()},b.prototype.isVideo=function(a,b){var c;if(c=this.s.dynamic?this.s.dynamicEl[b].html:this.$items.eq(b).attr("data-html"),!a)return c?{html5:!0}:(console.error("lightGallery :- data-src is not pvovided on slide item "+(b+1)+". Please make sure the selector property is properly configured. More info - http://sachinchoolur.github.io/lightGallery/demos/html-markup.html"),!1);var d=a.match(/\/\/(?:www\.)?youtu(?:\.be|be\.com|be-nocookie\.com)\/(?:watch\?v=|embed\/)?([a-z0-9\-\_\%]+)/i),e=a.match(/\/\/(?:www\.)?vimeo.com\/([0-9a-z\-_]+)/i),f=a.match(/\/\/(?:www\.)?dai.ly\/([0-9a-z\-_]+)/i),g=a.match(/\/\/(?:www\.)?(?:vk\.com|vkontakte\.ru)\/(?:video_ext\.php\?)(.*)/i);return d?{youtube:d}:e?{vimeo:e}:f?{dailymotion:f}:g?{vk:g}:void 0},b.prototype.counter=function(){this.s.counter&&a(this.s.appendCounterTo).append('<div id="lg-counter"><span id="lg-counter-current">'+(parseInt(this.index,10)+1)+'</span> / <span id="lg-counter-all">'+this.$items.length+"</span></div>")},b.prototype.addHtml=function(b){var c,d,e=null;if(this.s.dynamic?this.s.dynamicEl[b].subHtmlUrl?c=this.s.dynamicEl[b].subHtmlUrl:e=this.s.dynamicEl[b].subHtml:(d=this.$items.eq(b),d.attr("data-sub-html-url")?c=d.attr("data-sub-html-url"):(e=d.attr("data-sub-html"),this.s.getCaptionFromTitleOrAlt&&!e&&(e=d.attr("title")||d.find("img").first().attr("alt")))),!c)if(void 0!==e&&null!==e){var f=e.substring(0,1);"."!==f&&"#"!==f||(e=this.s.subHtmlSelectorRelative&&!this.s.dynamic?d.find(e).html():a(e).html())}else e="";".lg-sub-html"===this.s.appendSubHtmlTo?c?this.$outer.find(this.s.appendSubHtmlTo).load(c):this.$outer.find(this.s.appendSubHtmlTo).html(e):c?this.$slide.eq(b).load(c):this.$slide.eq(b).append(e),void 0!==e&&null!==e&&(""===e?this.$outer.find(this.s.appendSubHtmlTo).addClass("lg-empty-html"):this.$outer.find(this.s.appendSubHtmlTo).removeClass("lg-empty-html")),this.$el.trigger("onAfterAppendSubHtml.lg",[b])},b.prototype.preload=function(a){var b=1,c=1;for(b=1;b<=this.s.preload&&!(b>=this.$items.length-a);b++)this.loadContent(a+b,!1,0);for(c=1;c<=this.s.preload&&!(a-c<0);c++)this.loadContent(a-c,!1,0)},b.prototype.loadContent=function(b,c,d){var e,f,g,h,i,j,k=this,l=!1,m=function(b){for(var c=[],d=[],e=0;e<b.length;e++){var g=b[e].split(" ");""===g[0]&&g.splice(0,1),d.push(g[0]),c.push(g[1])}for(var h=a(window).width(),i=0;i<c.length;i++)if(parseInt(c[i],10)>h){f=d[i];break}};if(k.s.dynamic){if(k.s.dynamicEl[b].poster&&(l=!0,g=k.s.dynamicEl[b].poster),j=k.s.dynamicEl[b].html,f=k.s.dynamicEl[b].src,k.s.dynamicEl[b].responsive){m(k.s.dynamicEl[b].responsive.split(","))}h=k.s.dynamicEl[b].srcset,i=k.s.dynamicEl[b].sizes}else{if(k.$items.eq(b).attr("data-poster")&&(l=!0,g=k.$items.eq(b).attr("data-poster")),j=k.$items.eq(b).attr("data-html"),f=k.$items.eq(b).attr("href")||k.$items.eq(b).attr("data-src"),k.$items.eq(b).attr("data-responsive")){m(k.$items.eq(b).attr("data-responsive").split(","))}h=k.$items.eq(b).attr("data-srcset"),i=k.$items.eq(b).attr("data-sizes")}var n=!1;k.s.dynamic?k.s.dynamicEl[b].iframe&&(n=!0):"true"===k.$items.eq(b).attr("data-iframe")&&(n=!0);var o=k.isVideo(f,b);if(!k.$slide.eq(b).hasClass("lg-loaded")){if(n)k.$slide.eq(b).prepend('<div class="lg-video-cont lg-has-iframe" style="max-width:'+k.s.iframeMaxWidth+'"><div class="lg-video"><iframe class="lg-object" frameborder="0" src="'+f+'"  allowfullscreen="true"></iframe></div></div>');else if(l){var p="";p=o&&o.youtube?"lg-has-youtube":o&&o.vimeo?"lg-has-vimeo":"lg-has-html5",k.$slide.eq(b).prepend('<div class="lg-video-cont '+p+' "><div class="lg-video"><span class="lg-video-play"></span><img class="lg-object lg-has-poster" src="'+g+'" /></div></div>')}else o?(k.$slide.eq(b).prepend('<div class="lg-video-cont "><div class="lg-video"></div></div>'),k.$el.trigger("hasVideo.lg",[b,f,j])):k.$slide.eq(b).prepend('<div class="lg-img-wrap"><img class="lg-object lg-image" src="'+f+'" /></div>');if(k.$el.trigger("onAferAppendSlide.lg",[b]),e=k.$slide.eq(b).find(".lg-object"),i&&e.attr("sizes",i),h){e.attr("srcset",h);try{picturefill({elements:[e[0]]})}catch(a){console.warn("lightGallery :- If you want srcset to be supported for older browser please include picturefil version 2 javascript library in your document.")}}".lg-sub-html"!==this.s.appendSubHtmlTo&&k.addHtml(b),k.$slide.eq(b).addClass("lg-loaded")}k.$slide.eq(b).find(".lg-object").on("load.lg error.lg",function(){var c=0;d&&!a("body").hasClass("lg-from-hash")&&(c=d),setTimeout(function(){k.$slide.eq(b).addClass("lg-complete"),k.$el.trigger("onSlideItemLoad.lg",[b,d||0])},c)}),o&&o.html5&&!l&&k.$slide.eq(b).addClass("lg-complete"),!0===c&&(k.$slide.eq(b).hasClass("lg-complete")?k.preload(b):k.$slide.eq(b).find(".lg-object").on("load.lg error.lg",function(){k.preload(b)}))},b.prototype.slide=function(b,c,d,e){var f=this.$outer.find(".lg-current").index(),g=this;if(!g.lGalleryOn||f!==b){var h=this.$slide.length,i=g.lGalleryOn?this.s.speed:0;if(!g.lgBusy){if(this.s.download){var j;j=g.s.dynamic?!1!==g.s.dynamicEl[b].downloadUrl&&(g.s.dynamicEl[b].downloadUrl||g.s.dynamicEl[b].src):"false"!==g.$items.eq(b).attr("data-download-url")&&(g.$items.eq(b).attr("data-download-url")||g.$items.eq(b).attr("href")||g.$items.eq(b).attr("data-src")),j?(a("#lg-download").attr("href",j),g.$outer.removeClass("lg-hide-download")):g.$outer.addClass("lg-hide-download")}if(this.$el.trigger("onBeforeSlide.lg",[f,b,c,d]),g.lgBusy=!0,clearTimeout(g.hideBartimeout),".lg-sub-html"===this.s.appendSubHtmlTo&&setTimeout(function(){g.addHtml(b)},i),this.arrowDisable(b),e||(b<f?e="prev":b>f&&(e="next")),c){this.$slide.removeClass("lg-prev-slide lg-current lg-next-slide");var k,l;h>2?(k=b-1,l=b+1,0===b&&f===h-1?(l=0,k=h-1):b===h-1&&0===f&&(l=0,k=h-1)):(k=0,l=1),"prev"===e?g.$slide.eq(l).addClass("lg-next-slide"):g.$slide.eq(k).addClass("lg-prev-slide"),g.$slide.eq(b).addClass("lg-current")}else g.$outer.addClass("lg-no-trans"),this.$slide.removeClass("lg-prev-slide lg-next-slide"),"prev"===e?(this.$slide.eq(b).addClass("lg-prev-slide"),this.$slide.eq(f).addClass("lg-next-slide")):(this.$slide.eq(b).addClass("lg-next-slide"),this.$slide.eq(f).addClass("lg-prev-slide")),setTimeout(function(){g.$slide.removeClass("lg-current"),g.$slide.eq(b).addClass("lg-current"),g.$outer.removeClass("lg-no-trans")},50);g.lGalleryOn?(setTimeout(function(){g.loadContent(b,!0,0)},this.s.speed+50),setTimeout(function(){g.lgBusy=!1,g.$el.trigger("onAfterSlide.lg",[f,b,c,d])},this.s.speed)):(g.loadContent(b,!0,g.s.backdropDuration),g.lgBusy=!1,g.$el.trigger("onAfterSlide.lg",[f,b,c,d])),g.lGalleryOn=!0,this.s.counter&&a("#lg-counter-current").text(b+1)}g.index=b}},b.prototype.goToNextSlide=function(a){var b=this,c=b.s.loop;a&&b.$slide.length<3&&(c=!1),b.lgBusy||(b.index+1<b.$slide.length?(b.index++,b.$el.trigger("onBeforeNextSlide.lg",[b.index]),b.slide(b.index,a,!1,"next")):c?(b.index=0,b.$el.trigger("onBeforeNextSlide.lg",[b.index]),b.slide(b.index,a,!1,"next")):b.s.slideEndAnimatoin&&!a&&(b.$outer.addClass("lg-right-end"),setTimeout(function(){b.$outer.removeClass("lg-right-end")},400)))},b.prototype.goToPrevSlide=function(a){var b=this,c=b.s.loop;a&&b.$slide.length<3&&(c=!1),b.lgBusy||(b.index>0?(b.index--,b.$el.trigger("onBeforePrevSlide.lg",[b.index,a]),b.slide(b.index,a,!1,"prev")):c?(b.index=b.$items.length-1,b.$el.trigger("onBeforePrevSlide.lg",[b.index,a]),b.slide(b.index,a,!1,"prev")):b.s.slideEndAnimatoin&&!a&&(b.$outer.addClass("lg-left-end"),setTimeout(function(){b.$outer.removeClass("lg-left-end")},400)))},b.prototype.keyPress=function(){var b=this;this.$items.length>1&&a(window).on("keyup.lg",function(a){b.$items.length>1&&(37===a.keyCode&&(a.preventDefault(),b.goToPrevSlide()),39===a.keyCode&&(a.preventDefault(),b.goToNextSlide()))}),a(window).on("keydown.lg",function(a){!0===b.s.escKey&&27===a.keyCode&&(a.preventDefault(),b.$outer.hasClass("lg-thumb-open")?b.$outer.removeClass("lg-thumb-open"):b.destroy())})},b.prototype.arrow=function(){var a=this;this.$outer.find(".lg-prev").on("click.lg",function(){a.goToPrevSlide()}),this.$outer.find(".lg-next").on("click.lg",function(){a.goToNextSlide()})},b.prototype.arrowDisable=function(a){!this.s.loop&&this.s.hideControlOnEnd&&(a+1<this.$slide.length?this.$outer.find(".lg-next").removeAttr("disabled").removeClass("disabled"):this.$outer.find(".lg-next").attr("disabled","disabled").addClass("disabled"),a>0?this.$outer.find(".lg-prev").removeAttr("disabled").removeClass("disabled"):this.$outer.find(".lg-prev").attr("disabled","disabled").addClass("disabled"))},b.prototype.setTranslate=function(a,b,c){this.s.useLeft?a.css("left",b):a.css({transform:"translate3d("+b+"px, "+c+"px, 0px)"})},b.prototype.touchMove=function(b,c){var d=c-b;Math.abs(d)>15&&(this.$outer.addClass("lg-dragging"),this.setTranslate(this.$slide.eq(this.index),d,0),this.setTranslate(a(".lg-prev-slide"),-this.$slide.eq(this.index).width()+d,0),this.setTranslate(a(".lg-next-slide"),this.$slide.eq(this.index).width()+d,0))},b.prototype.touchEnd=function(a){var b=this;"lg-slide"!==b.s.mode&&b.$outer.addClass("lg-slide"),this.$slide.not(".lg-current, .lg-prev-slide, .lg-next-slide").css("opacity","0"),setTimeout(function(){b.$outer.removeClass("lg-dragging"),a<0&&Math.abs(a)>b.s.swipeThreshold?b.goToNextSlide(!0):a>0&&Math.abs(a)>b.s.swipeThreshold?b.goToPrevSlide(!0):Math.abs(a)<5&&b.$el.trigger("onSlideClick.lg"),b.$slide.removeAttr("style")}),setTimeout(function(){b.$outer.hasClass("lg-dragging")||"lg-slide"===b.s.mode||b.$outer.removeClass("lg-slide")},b.s.speed+100)},b.prototype.enableSwipe=function(){var a=this,b=0,c=0,d=!1;a.s.enableSwipe&&a.doCss()&&(a.$slide.on("touchstart.lg",function(c){a.$outer.hasClass("lg-zoomed")||a.lgBusy||(c.preventDefault(),a.manageSwipeClass(),b=c.originalEvent.targetTouches[0].pageX)}),a.$slide.on("touchmove.lg",function(e){a.$outer.hasClass("lg-zoomed")||(e.preventDefault(),c=e.originalEvent.targetTouches[0].pageX,a.touchMove(b,c),d=!0)}),a.$slide.on("touchend.lg",function(){a.$outer.hasClass("lg-zoomed")||(d?(d=!1,a.touchEnd(c-b)):a.$el.trigger("onSlideClick.lg"))}))},b.prototype.enableDrag=function(){var b=this,c=0,d=0,e=!1,f=!1;b.s.enableDrag&&b.doCss()&&(b.$slide.on("mousedown.lg",function(d){b.$outer.hasClass("lg-zoomed")||b.lgBusy||a(d.target).text().trim()||(d.preventDefault(),b.manageSwipeClass(),c=d.pageX,e=!0,b.$outer.scrollLeft+=1,b.$outer.scrollLeft-=1,b.$outer.removeClass("lg-grab").addClass("lg-grabbing"),b.$el.trigger("onDragstart.lg"))}),a(window).on("mousemove.lg",function(a){e&&(f=!0,d=a.pageX,b.touchMove(c,d),b.$el.trigger("onDragmove.lg"))}),a(window).on("mouseup.lg",function(g){f?(f=!1,b.touchEnd(d-c),b.$el.trigger("onDragend.lg")):(a(g.target).hasClass("lg-object")||a(g.target).hasClass("lg-video-play"))&&b.$el.trigger("onSlideClick.lg"),e&&(e=!1,b.$outer.removeClass("lg-grabbing").addClass("lg-grab"))}))},b.prototype.manageSwipeClass=function(){var a=this.index+1,b=this.index-1;this.s.loop&&this.$slide.length>2&&(0===this.index?b=this.$slide.length-1:this.index===this.$slide.length-1&&(a=0)),this.$slide.removeClass("lg-next-slide lg-prev-slide"),b>-1&&this.$slide.eq(b).addClass("lg-prev-slide"),this.$slide.eq(a).addClass("lg-next-slide")},b.prototype.mousewheel=function(){var a=this;a.$outer.on("mousewheel.lg",function(b){b.deltaY&&(b.deltaY>0?a.goToPrevSlide():a.goToNextSlide(),b.preventDefault())})},b.prototype.closeGallery=function(){var b=this,c=!1;this.$outer.find(".lg-close").on("click.lg",function(){b.destroy()}),b.s.closable&&(b.$outer.on("mousedown.lg",function(b){c=!!(a(b.target).is(".lg-outer")||a(b.target).is(".lg-item ")||a(b.target).is(".lg-img-wrap"))}),b.$outer.on("mousemove.lg",function(){c=!1}),b.$outer.on("mouseup.lg",function(d){(a(d.target).is(".lg-outer")||a(d.target).is(".lg-item ")||a(d.target).is(".lg-img-wrap")&&c)&&(b.$outer.hasClass("lg-dragging")||b.destroy())}))},b.prototype.destroy=function(b){var c=this;b||(c.$el.trigger("onBeforeClose.lg"),a(window).scrollTop(c.prevScrollTop)),b&&(c.s.dynamic||this.$items.off("click.lg click.lgcustom"),a.removeData(c.el,"lightGallery")),this.$el.off(".lg.tm"),a.each(a.fn.lightGallery.modules,function(a){c.modules[a]&&c.modules[a].destroy()}),this.lGalleryOn=!1,clearTimeout(c.hideBartimeout),this.hideBartimeout=!1,a(window).off(".lg"),a("body").removeClass("lg-on lg-from-hash"),c.$outer&&c.$outer.removeClass("lg-visible"),a(".lg-backdrop").removeClass("in"),setTimeout(function(){c.$outer&&c.$outer.remove(),a(".lg-backdrop").remove(),b||c.$el.trigger("onCloseAfter.lg")},c.s.backdropDuration+50)},a.fn.lightGallery=function(c){return this.each(function(){if(a.data(this,"lightGallery"))try{a(this).data("lightGallery").init()}catch(a){console.error("lightGallery has not initiated properly")}else a.data(this,"lightGallery",new b(this,c))})},a.fn.lightGallery.modules={}}()}),function(a,b){"function"==typeof define&&define.amd?define(["jquery"],function(a){return b(a)}):"object"==typeof exports?module.exports=b(require("jquery")):b(jQuery)}(0,function(a){!function(){"use strict";var b={autoplay:!1,pause:5e3,progressBar:!0,fourceAutoplay:!1,autoplayControls:!0,appendAutoplayControlsTo:".lg-toolbar"},c=function(c){return this.core=a(c).data("lightGallery"),this.$el=a(c),!(this.core.$items.length<2)&&(this.core.s=a.extend({},b,this.core.s),this.interval=!1,this.fromAuto=!0,this.canceledOnTouch=!1,this.fourceAutoplayTemp=this.core.s.fourceAutoplay,this.core.doCss()||(this.core.s.progressBar=!1),this.init(),this)};c.prototype.init=function(){var a=this;a.core.s.autoplayControls&&a.controls(),a.core.s.progressBar&&a.core.$outer.find(".lg").append('<div class="lg-progress-bar"><div class="lg-progress"></div></div>'),a.progress(),a.core.s.autoplay&&a.$el.one("onSlideItemLoad.lg.tm",function(){a.startlAuto()}),a.$el.on("onDragstart.lg.tm touchstart.lg.tm",function(){a.interval&&(a.cancelAuto(),a.canceledOnTouch=!0)}),a.$el.on("onDragend.lg.tm touchend.lg.tm onSlideClick.lg.tm",function(){!a.interval&&a.canceledOnTouch&&(a.startlAuto(),a.canceledOnTouch=!1)})},c.prototype.progress=function(){var a,b,c=this;c.$el.on("onBeforeSlide.lg.tm",function(){c.core.s.progressBar&&c.fromAuto&&(a=c.core.$outer.find(".lg-progress-bar"),b=c.core.$outer.find(".lg-progress"),c.interval&&(b.removeAttr("style"),a.removeClass("lg-start"),setTimeout(function(){b.css("transition","width "+(c.core.s.speed+c.core.s.pause)+"ms ease 0s"),a.addClass("lg-start")},20))),c.fromAuto||c.core.s.fourceAutoplay||c.cancelAuto(),c.fromAuto=!1})},c.prototype.controls=function(){var b=this;a(this.core.s.appendAutoplayControlsTo).append('<span class="lg-autoplay-button lg-icon"></span>'),b.core.$outer.find(".lg-autoplay-button").on("click.lg",function(){a(b.core.$outer).hasClass("lg-show-autoplay")?(b.cancelAuto(),b.core.s.fourceAutoplay=!1):b.interval||(b.startlAuto(),b.core.s.fourceAutoplay=b.fourceAutoplayTemp)})},c.prototype.startlAuto=function(){var a=this;a.core.$outer.find(".lg-progress").css("transition","width "+(a.core.s.speed+a.core.s.pause)+"ms ease 0s"),a.core.$outer.addClass("lg-show-autoplay"),a.core.$outer.find(".lg-progress-bar").addClass("lg-start"),a.interval=setInterval(function(){a.core.index+1<a.core.$items.length?a.core.index++:a.core.index=0,a.fromAuto=!0,a.core.slide(a.core.index,!1,!1,"next")},a.core.s.speed+a.core.s.pause)},c.prototype.cancelAuto=function(){clearInterval(this.interval),this.interval=!1,this.core.$outer.find(".lg-progress").removeAttr("style"),this.core.$outer.removeClass("lg-show-autoplay"),this.core.$outer.find(".lg-progress-bar").removeClass("lg-start")},c.prototype.destroy=function(){this.cancelAuto(),this.core.$outer.find(".lg-progress-bar").remove()},a.fn.lightGallery.modules.autoplay=c}()}),function(a,b){"function"==typeof define&&define.amd?define(["jquery"],function(a){return b(a)}):"object"==typeof exports?module.exports=b(require("jquery")):b(jQuery)}(0,function(a){!function(){"use strict";var b={fullScreen:!0},c=function(c){return this.core=a(c).data("lightGallery"),this.$el=a(c),this.core.s=a.extend({},b,this.core.s),this.init(),this};c.prototype.init=function(){var a="";if(this.core.s.fullScreen){if(!(document.fullscreenEnabled||document.webkitFullscreenEnabled||document.mozFullScreenEnabled||document.msFullscreenEnabled))return;a='<span class="lg-fullscreen lg-icon"></span>',this.core.$outer.find(".lg-toolbar").append(a),this.fullScreen()}},c.prototype.requestFullscreen=function(){var a=document.documentElement;a.requestFullscreen?a.requestFullscreen():a.msRequestFullscreen?a.msRequestFullscreen():a.mozRequestFullScreen?a.mozRequestFullScreen():a.webkitRequestFullscreen&&a.webkitRequestFullscreen()},c.prototype.exitFullscreen=function(){document.exitFullscreen?document.exitFullscreen():document.msExitFullscreen?document.msExitFullscreen():document.mozCancelFullScreen?document.mozCancelFullScreen():document.webkitExitFullscreen&&document.webkitExitFullscreen()},c.prototype.fullScreen=function(){var b=this;a(document).on("fullscreenchange.lg webkitfullscreenchange.lg mozfullscreenchange.lg MSFullscreenChange.lg",function(){b.core.$outer.toggleClass("lg-fullscreen-on")}),this.core.$outer.find(".lg-fullscreen").on("click.lg",function(){document.fullscreenElement||document.mozFullScreenElement||document.webkitFullscreenElement||document.msFullscreenElement?b.exitFullscreen():b.requestFullscreen()})},c.prototype.destroy=function(){this.exitFullscreen(),a(document).off("fullscreenchange.lg webkitfullscreenchange.lg mozfullscreenchange.lg MSFullscreenChange.lg")},a.fn.lightGallery.modules.fullscreen=c}()}),function(a,b){"function"==typeof define&&define.amd?define(["jquery"],function(a){return b(a)}):"object"==typeof exports?module.exports=b(require("jquery")):b(jQuery)}(0,function(a){!function(){"use strict";var b={pager:!1},c=function(c){return this.core=a(c).data("lightGallery"),this.$el=a(c),this.core.s=a.extend({},b,this.core.s),this.core.s.pager&&this.core.$items.length>1&&this.init(),this};c.prototype.init=function(){var b,c,d,e=this,f="";if(e.core.$outer.find(".lg").append('<div class="lg-pager-outer"></div>'),e.core.s.dynamic)for(var g=0;g<e.core.s.dynamicEl.length;g++)f+='<span class="lg-pager-cont"> <span class="lg-pager"></span><div class="lg-pager-thumb-cont"><span class="lg-caret"></span> <img src="'+e.core.s.dynamicEl[g].thumb+'" /></div></span>';else e.core.$items.each(function(){e.core.s.exThumbImage?f+='<span class="lg-pager-cont"> <span class="lg-pager"></span><div class="lg-pager-thumb-cont"><span class="lg-caret"></span> <img src="'+a(this).attr(e.core.s.exThumbImage)+'" /></div></span>':f+='<span class="lg-pager-cont"> <span class="lg-pager"></span><div class="lg-pager-thumb-cont"><span class="lg-caret"></span> <img src="'+a(this).find("img").attr("src")+'" /></div></span>'});c=e.core.$outer.find(".lg-pager-outer"),c.html(f),b=e.core.$outer.find(".lg-pager-cont"),b.on("click.lg touchend.lg",function(){var b=a(this);e.core.index=b.index(),e.core.slide(e.core.index,!1,!0,!1)}),c.on("mouseover.lg",function(){clearTimeout(d),c.addClass("lg-pager-hover")}),c.on("mouseout.lg",function(){d=setTimeout(function(){c.removeClass("lg-pager-hover")})}),e.core.$el.on("onBeforeSlide.lg.tm",function(a,c,d){b.removeClass("lg-pager-active"),b.eq(d).addClass("lg-pager-active")})},c.prototype.destroy=function(){},a.fn.lightGallery.modules.pager=c}()}),function(a,b){"function"==typeof define&&define.amd?define(["jquery"],function(a){return b(a)}):"object"==typeof exports?module.exports=b(require("jquery")):b(jQuery)}(0,function(a){!function(){"use strict";var b={thumbnail:!0,animateThumb:!0,currentPagerPosition:"middle",thumbWidth:100,thumbHeight:"80px",thumbContHeight:100,thumbMargin:5,exThumbImage:!1,showThumbByDefault:!0,toogleThumb:!0,pullCaptionUp:!0,enableThumbDrag:!0,enableThumbSwipe:!0,swipeThreshold:50,loadYoutubeThumbnail:!0,youtubeThumbSize:1,loadVimeoThumbnail:!0,vimeoThumbSize:"thumbnail_small",loadDailymotionThumbnail:!0},c=function(c){return this.core=a(c).data("lightGallery"),this.core.s=a.extend({},b,this.core.s),this.$el=a(c),this.$thumbOuter=null,this.thumbOuterWidth=0,this.thumbTotalWidth=this.core.$items.length*(this.core.s.thumbWidth+this.core.s.thumbMargin),this.thumbIndex=this.core.index,this.core.s.animateThumb&&(this.core.s.thumbHeight="100%"),this.left=0,this.init(),this};c.prototype.init=function(){var a=this;this.core.s.thumbnail&&this.core.$items.length>1&&(this.core.s.showThumbByDefault&&setTimeout(function(){a.core.$outer.addClass("lg-thumb-open")},700),this.core.s.pullCaptionUp&&this.core.$outer.addClass("lg-pull-caption-up"),this.build(),this.core.s.animateThumb&&this.core.doCss()?(this.core.s.enableThumbDrag&&this.enableThumbDrag(),this.core.s.enableThumbSwipe&&this.enableThumbSwipe(),this.thumbClickable=!1):this.thumbClickable=!0,this.toogle(),this.thumbkeyPress())},c.prototype.build=function(){function b(a,b,c){var g,h=d.core.isVideo(a,c)||{},i="";h.youtube||h.vimeo||h.dailymotion?h.youtube?g=d.core.s.loadYoutubeThumbnail?"//img.youtube.com/vi/"+h.youtube[1]+"/"+d.core.s.youtubeThumbSize+".jpg":b:h.vimeo?d.core.s.loadVimeoThumbnail?(g="//i.vimeocdn.com/video/error_"+f+".jpg",i=h.vimeo[1]):g=b:h.dailymotion&&(g=d.core.s.loadDailymotionThumbnail?"//www.dailymotion.com/thumbnail/video/"+h.dailymotion[1]:b):g=b,e+='<div data-vimeo-id="'+i+'" class="lg-thumb-item" style="width:'+d.core.s.thumbWidth+"px; height: "+d.core.s.thumbHeight+"; margin-right: "+d.core.s.thumbMargin+'px"><img src="'+g+'" /></div>',i=""}var c,d=this,e="",f="",g='<div class="lg-thumb-outer"><div class="lg-thumb lg-group"></div></div>';switch(this.core.s.vimeoThumbSize){case"thumbnail_large":f="640";break;case"thumbnail_medium":f="200x150";break;case"thumbnail_small":f="100x75"}if(d.core.$outer.addClass("lg-has-thumb"),d.core.$outer.find(".lg").append(g),d.$thumbOuter=d.core.$outer.find(".lg-thumb-outer"),d.thumbOuterWidth=d.$thumbOuter.width(),d.core.s.animateThumb&&d.core.$outer.find(".lg-thumb").css({width:d.thumbTotalWidth+"px",position:"relative"}),this.core.s.animateThumb&&d.$thumbOuter.css("height",d.core.s.thumbContHeight+"px"),d.core.s.dynamic)for(var h=0;h<d.core.s.dynamicEl.length;h++)b(d.core.s.dynamicEl[h].src,d.core.s.dynamicEl[h].thumb,h);else d.core.$items.each(function(c){d.core.s.exThumbImage?b(a(this).attr("href")||a(this).attr("data-src"),a(this).attr(d.core.s.exThumbImage),c):b(a(this).attr("href")||a(this).attr("data-src"),a(this).find("img").attr("src"),c)});d.core.$outer.find(".lg-thumb").html(e),c=d.core.$outer.find(".lg-thumb-item"),c.each(function(){var b=a(this),c=b.attr("data-vimeo-id");c&&a.getJSON("//www.vimeo.com/api/v2/video/"+c+".json?callback=?",{format:"json"},function(a){b.find("img").attr("src",a[0][d.core.s.vimeoThumbSize])})}),c.eq(d.core.index).addClass("active"),d.core.$el.on("onBeforeSlide.lg.tm",function(){c.removeClass("active"),c.eq(d.core.index).addClass("active")}),c.on("click.lg touchend.lg",function(){var b=a(this);setTimeout(function(){(d.thumbClickable&&!d.core.lgBusy||!d.core.doCss())&&(d.core.index=b.index(),d.core.slide(d.core.index,!1,!0,!1))},50)}),d.core.$el.on("onBeforeSlide.lg.tm",function(){d.animateThumb(d.core.index)}),a(window).on("resize.lg.thumb orientationchange.lg.thumb",function(){setTimeout(function(){d.animateThumb(d.core.index),d.thumbOuterWidth=d.$thumbOuter.width()},200)})},c.prototype.setTranslate=function(a){this.core.$outer.find(".lg-thumb").css({transform:"translate3d(-"+a+"px, 0px, 0px)"})},c.prototype.animateThumb=function(a){var b=this.core.$outer.find(".lg-thumb");if(this.core.s.animateThumb){var c;switch(this.core.s.currentPagerPosition){case"left":c=0;break;case"middle":c=this.thumbOuterWidth/2-this.core.s.thumbWidth/2;break;case"right":c=this.thumbOuterWidth-this.core.s.thumbWidth}this.left=(this.core.s.thumbWidth+this.core.s.thumbMargin)*a-1-c,this.left>this.thumbTotalWidth-this.thumbOuterWidth&&(this.left=this.thumbTotalWidth-this.thumbOuterWidth),this.left<0&&(this.left=0),this.core.lGalleryOn?(b.hasClass("on")||this.core.$outer.find(".lg-thumb").css("transition-duration",this.core.s.speed+"ms"),this.core.doCss()||b.animate({left:-this.left+"px"},this.core.s.speed)):this.core.doCss()||b.css("left",-this.left+"px"),this.setTranslate(this.left)}},c.prototype.enableThumbDrag=function(){var b=this,c=0,d=0,e=!1,f=!1,g=0;b.$thumbOuter.addClass("lg-grab"),b.core.$outer.find(".lg-thumb").on("mousedown.lg.thumb",function(a){b.thumbTotalWidth>b.thumbOuterWidth&&(a.preventDefault(),c=a.pageX,e=!0,b.core.$outer.scrollLeft+=1,b.core.$outer.scrollLeft-=1,b.thumbClickable=!1,b.$thumbOuter.removeClass("lg-grab").addClass("lg-grabbing"))}),a(window).on("mousemove.lg.thumb",function(a){e&&(g=b.left,f=!0,d=a.pageX,b.$thumbOuter.addClass("lg-dragging"),g-=d-c,g>b.thumbTotalWidth-b.thumbOuterWidth&&(g=b.thumbTotalWidth-b.thumbOuterWidth),g<0&&(g=0),b.setTranslate(g))}),a(window).on("mouseup.lg.thumb",function(){f?(f=!1,b.$thumbOuter.removeClass("lg-dragging"),b.left=g,Math.abs(d-c)<b.core.s.swipeThreshold&&(b.thumbClickable=!0)):b.thumbClickable=!0,e&&(e=!1,b.$thumbOuter.removeClass("lg-grabbing").addClass("lg-grab"))})},c.prototype.enableThumbSwipe=function(){var a=this,b=0,c=0,d=!1,e=0;a.core.$outer.find(".lg-thumb").on("touchstart.lg",function(c){a.thumbTotalWidth>a.thumbOuterWidth&&(c.preventDefault(),b=c.originalEvent.targetTouches[0].pageX,a.thumbClickable=!1)}),a.core.$outer.find(".lg-thumb").on("touchmove.lg",function(f){a.thumbTotalWidth>a.thumbOuterWidth&&(f.preventDefault(),c=f.originalEvent.targetTouches[0].pageX,d=!0,a.$thumbOuter.addClass("lg-dragging"),e=a.left,e-=c-b,e>a.thumbTotalWidth-a.thumbOuterWidth&&(e=a.thumbTotalWidth-a.thumbOuterWidth),e<0&&(e=0),a.setTranslate(e))}),a.core.$outer.find(".lg-thumb").on("touchend.lg",function(){a.thumbTotalWidth>a.thumbOuterWidth&&d?(d=!1,a.$thumbOuter.removeClass("lg-dragging"),Math.abs(c-b)<a.core.s.swipeThreshold&&(a.thumbClickable=!0),a.left=e):a.thumbClickable=!0})},c.prototype.toogle=function(){var a=this;a.core.s.toogleThumb&&(a.core.$outer.addClass("lg-can-toggle"),a.$thumbOuter.append('<span class="lg-toogle-thumb lg-icon"></span>'),a.core.$outer.find(".lg-toogle-thumb").on("click.lg",function(){a.core.$outer.toggleClass("lg-thumb-open")}))},c.prototype.thumbkeyPress=function(){var b=this;a(window).on("keydown.lg.thumb",function(a){38===a.keyCode?(a.preventDefault(),b.core.$outer.addClass("lg-thumb-open")):40===a.keyCode&&(a.preventDefault(),b.core.$outer.removeClass("lg-thumb-open"))})},c.prototype.destroy=function(){this.core.s.thumbnail&&this.core.$items.length>1&&(a(window).off("resize.lg.thumb orientationchange.lg.thumb keydown.lg.thumb"),
+    this.$thumbOuter.remove(),this.core.$outer.removeClass("lg-has-thumb"))},a.fn.lightGallery.modules.Thumbnail=c}()}),function(a,b){"function"==typeof define&&define.amd?define(["jquery"],function(a){return b(a)}):"object"==typeof module&&module.exports?module.exports=b(require("jquery")):b(a.jQuery)}(this,function(a){!function(){"use strict";function b(a,b,c,d){var e=this;if(e.core.$slide.eq(b).find(".lg-video").append(e.loadVideo(c,"lg-object",!0,b,d)),d)if(e.core.s.videojs)try{videojs(e.core.$slide.eq(b).find(".lg-html5").get(0),e.core.s.videojsOptions,function(){!e.videoLoaded&&e.core.s.autoplayFirstVideo&&this.play()})}catch(a){console.error("Make sure you have included videojs")}else!e.videoLoaded&&e.core.s.autoplayFirstVideo&&e.core.$slide.eq(b).find(".lg-html5").get(0).play()}function c(a,b){var c=this.core.$slide.eq(b).find(".lg-video-cont");c.hasClass("lg-has-iframe")||(c.css("max-width",this.core.s.videoMaxWidth),this.videoLoaded=!0)}function d(b,c,d){var e=this,f=e.core.$slide.eq(c),g=f.find(".lg-youtube").get(0),h=f.find(".lg-vimeo").get(0),i=f.find(".lg-dailymotion").get(0),j=f.find(".lg-vk").get(0),k=f.find(".lg-html5").get(0);if(g)g.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}',"*");else if(h)try{$f(h).api("pause")}catch(a){console.error("Make sure you have included froogaloop2 js")}else if(i)i.contentWindow.postMessage("pause","*");else if(k)if(e.core.s.videojs)try{videojs(k).pause()}catch(a){console.error("Make sure you have included videojs")}else k.pause();j&&a(j).attr("src",a(j).attr("src").replace("&autoplay","&noplay"));var l;l=e.core.s.dynamic?e.core.s.dynamicEl[d].src:e.core.$items.eq(d).attr("href")||e.core.$items.eq(d).attr("data-src");var m=e.core.isVideo(l,d)||{};(m.youtube||m.vimeo||m.dailymotion||m.vk)&&e.core.$outer.addClass("lg-hide-download")}var e={videoMaxWidth:"855px",autoplayFirstVideo:!0,youtubePlayerParams:!1,vimeoPlayerParams:!1,dailymotionPlayerParams:!1,vkPlayerParams:!1,videojs:!1,videojsOptions:{}},f=function(b){return this.core=a(b).data("lightGallery"),this.$el=a(b),this.core.s=a.extend({},e,this.core.s),this.videoLoaded=!1,this.init(),this};f.prototype.init=function(){var e=this;e.core.$el.on("hasVideo.lg.tm",b.bind(this)),e.core.$el.on("onAferAppendSlide.lg.tm",c.bind(this)),e.core.doCss()&&e.core.$items.length>1&&(e.core.s.enableSwipe||e.core.s.enableDrag)?e.core.$el.on("onSlideClick.lg.tm",function(){var a=e.core.$slide.eq(e.core.index);e.loadVideoOnclick(a)}):e.core.$slide.on("click.lg",function(){e.loadVideoOnclick(a(this))}),e.core.$el.on("onBeforeSlide.lg.tm",d.bind(this)),e.core.$el.on("onAfterSlide.lg.tm",function(a,b){e.core.$slide.eq(b).removeClass("lg-video-playing")}),e.core.s.autoplayFirstVideo&&e.core.$el.on("onAferAppendSlide.lg.tm",function(a,b){if(!e.core.lGalleryOn){var c=e.core.$slide.eq(b);setTimeout(function(){e.loadVideoOnclick(c)},100)}})},f.prototype.loadVideo=function(b,c,d,e,f){var g="",h=1,i="",j=this.core.isVideo(b,e)||{};if(d&&(h=this.videoLoaded?0:this.core.s.autoplayFirstVideo?1:0),j.youtube)i="?wmode=opaque&autoplay="+h+"&enablejsapi=1",this.core.s.youtubePlayerParams&&(i=i+"&"+a.param(this.core.s.youtubePlayerParams)),g='<iframe class="lg-video-object lg-youtube '+c+'" width="560" height="315" src="//www.youtube.com/embed/'+j.youtube[1]+i+'" frameborder="0" allowfullscreen></iframe>';else if(j.vimeo)i="?autoplay="+h+"&api=1",this.core.s.vimeoPlayerParams&&(i=i+"&"+a.param(this.core.s.vimeoPlayerParams)),g='<iframe class="lg-video-object lg-vimeo '+c+'" width="560" height="315"  src="//player.vimeo.com/video/'+j.vimeo[1]+i+'" frameborder="0" webkitAllowFullScreen mozallowfullscreen allowFullScreen></iframe>';else if(j.dailymotion)i="?wmode=opaque&autoplay="+h+"&api=postMessage",this.core.s.dailymotionPlayerParams&&(i=i+"&"+a.param(this.core.s.dailymotionPlayerParams)),g='<iframe class="lg-video-object lg-dailymotion '+c+'" width="560" height="315" src="//www.dailymotion.com/embed/video/'+j.dailymotion[1]+i+'" frameborder="0" allowfullscreen></iframe>';else if(j.html5){var k=f.substring(0,1);"."!==k&&"#"!==k||(f=a(f).html()),g=f}else j.vk&&(i="&autoplay="+h,this.core.s.vkPlayerParams&&(i=i+"&"+a.param(this.core.s.vkPlayerParams)),g='<iframe class="lg-video-object lg-vk '+c+'" width="560" height="315" src="//vk.com/video_ext.php?'+j.vk[1]+i+'" frameborder="0" allowfullscreen></iframe>');return g},f.prototype.loadVideoOnclick=function(a){var b=this;if(a.find(".lg-object").hasClass("lg-has-poster")&&a.find(".lg-object").is(":visible"))if(a.hasClass("lg-has-video")){var c=a.find(".lg-youtube").get(0),d=a.find(".lg-vimeo").get(0),e=a.find(".lg-dailymotion").get(0),f=a.find(".lg-html5").get(0);if(c)c.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}',"*");else if(d)try{$f(d).api("play")}catch(a){console.error("Make sure you have included froogaloop2 js")}else if(e)e.contentWindow.postMessage("play","*");else if(f)if(b.core.s.videojs)try{videojs(f).play()}catch(a){console.error("Make sure you have included videojs")}else f.play();a.addClass("lg-video-playing")}else{a.addClass("lg-video-playing lg-has-video");var g,h,i=function(c,d){if(a.find(".lg-video").append(b.loadVideo(c,"",!1,b.core.index,d)),d)if(b.core.s.videojs)try{videojs(b.core.$slide.eq(b.core.index).find(".lg-html5").get(0),b.core.s.videojsOptions,function(){this.play()})}catch(a){console.error("Make sure you have included videojs")}else b.core.$slide.eq(b.core.index).find(".lg-html5").get(0).play()};b.core.s.dynamic?(g=b.core.s.dynamicEl[b.core.index].src,h=b.core.s.dynamicEl[b.core.index].html,i(g,h)):(g=b.core.$items.eq(b.core.index).attr("href")||b.core.$items.eq(b.core.index).attr("data-src"),h=b.core.$items.eq(b.core.index).attr("data-html"),i(g,h));var j=a.find(".lg-object");a.find(".lg-video").append(j),a.find(".lg-video-object").hasClass("lg-html5")||(a.removeClass("lg-complete"),a.find(".lg-video-object").on("load.lg error.lg",function(){a.addClass("lg-complete")}))}},f.prototype.destroy=function(){this.videoLoaded=!1},a.fn.lightGallery.modules.video=f}()}),function(a,b){"function"==typeof define&&define.amd?define(["jquery"],function(a){return b(a)}):"object"==typeof exports?module.exports=b(require("jquery")):b(jQuery)}(0,function(a){!function(){"use strict";var b=function(){var a=!1,b=navigator.userAgent.match(/Chrom(e|ium)\/([0-9]+)\./);return b&&parseInt(b[2],10)<54&&(a=!0),a},c={scale:1,zoom:!0,actualSize:!0,enableZoomAfter:300,useLeftForZoom:b()},d=function(b){return this.core=a(b).data("lightGallery"),this.core.s=a.extend({},c,this.core.s),this.core.s.zoom&&this.core.doCss()&&(this.init(),this.zoomabletimeout=!1,this.pageX=a(window).width()/2,this.pageY=a(window).height()/2+a(window).scrollTop()),this};d.prototype.init=function(){var b=this,c='<span id="lg-zoom-in" class="lg-icon"></span><span id="lg-zoom-out" class="lg-icon"></span>';b.core.s.actualSize&&(c+='<span id="lg-actual-size" class="lg-icon"></span>'),b.core.s.useLeftForZoom?b.core.$outer.addClass("lg-use-left-for-zoom"):b.core.$outer.addClass("lg-use-transition-for-zoom"),this.core.$outer.find(".lg-toolbar").append(c),b.core.$el.on("onSlideItemLoad.lg.tm.zoom",function(c,d,e){var f=b.core.s.enableZoomAfter+e;a("body").hasClass("lg-from-hash")&&e?f=0:a("body").removeClass("lg-from-hash"),b.zoomabletimeout=setTimeout(function(){b.core.$slide.eq(d).addClass("lg-zoomable")},f+30)});var d=1,e=function(c){var d,e,f=b.core.$outer.find(".lg-current .lg-image"),g=(a(window).width()-f.prop("offsetWidth"))/2,h=(a(window).height()-f.prop("offsetHeight"))/2+a(window).scrollTop();d=b.pageX-g,e=b.pageY-h;var i=(c-1)*d,j=(c-1)*e;f.css("transform","scale3d("+c+", "+c+", 1)").attr("data-scale",c),b.core.s.useLeftForZoom?f.parent().css({left:-i+"px",top:-j+"px"}).attr("data-x",i).attr("data-y",j):f.parent().css("transform","translate3d(-"+i+"px, -"+j+"px, 0)").attr("data-x",i).attr("data-y",j)},f=function(){d>1?b.core.$outer.addClass("lg-zoomed"):b.resetZoom(),d<1&&(d=1),e(d)},g=function(c,e,g,h){var i,j=e.prop("offsetWidth");i=b.core.s.dynamic?b.core.s.dynamicEl[g].width||e[0].naturalWidth||j:b.core.$items.eq(g).attr("data-width")||e[0].naturalWidth||j;var k;b.core.$outer.hasClass("lg-zoomed")?d=1:i>j&&(k=i/j,d=k||2),h?(b.pageX=a(window).width()/2,b.pageY=a(window).height()/2+a(window).scrollTop()):(b.pageX=c.pageX||c.originalEvent.targetTouches[0].pageX,b.pageY=c.pageY||c.originalEvent.targetTouches[0].pageY),f(),setTimeout(function(){b.core.$outer.removeClass("lg-grabbing").addClass("lg-grab")},10)},h=!1;b.core.$el.on("onAferAppendSlide.lg.tm.zoom",function(a,c){var d=b.core.$slide.eq(c).find(".lg-image");d.on("dblclick",function(a){g(a,d,c)}),d.on("touchstart",function(a){h?(clearTimeout(h),h=null,g(a,d,c)):h=setTimeout(function(){h=null},300),a.preventDefault()})}),a(window).on("resize.lg.zoom scroll.lg.zoom orientationchange.lg.zoom",function(){b.pageX=a(window).width()/2,b.pageY=a(window).height()/2+a(window).scrollTop(),e(d)}),a("#lg-zoom-out").on("click.lg",function(){b.core.$outer.find(".lg-current .lg-image").length&&(d-=b.core.s.scale,f())}),a("#lg-zoom-in").on("click.lg",function(){b.core.$outer.find(".lg-current .lg-image").length&&(d+=b.core.s.scale,f())}),a("#lg-actual-size").on("click.lg",function(a){g(a,b.core.$slide.eq(b.core.index).find(".lg-image"),b.core.index,!0)}),b.core.$el.on("onBeforeSlide.lg.tm",function(){d=1,b.resetZoom()}),b.zoomDrag(),b.zoomSwipe()},d.prototype.resetZoom=function(){this.core.$outer.removeClass("lg-zoomed"),this.core.$slide.find(".lg-img-wrap").removeAttr("style data-x data-y"),this.core.$slide.find(".lg-image").removeAttr("style data-scale"),this.pageX=a(window).width()/2,this.pageY=a(window).height()/2+a(window).scrollTop()},d.prototype.zoomSwipe=function(){var a=this,b={},c={},d=!1,e=!1,f=!1;a.core.$slide.on("touchstart.lg",function(c){if(a.core.$outer.hasClass("lg-zoomed")){var d=a.core.$slide.eq(a.core.index).find(".lg-object");f=d.prop("offsetHeight")*d.attr("data-scale")>a.core.$outer.find(".lg").height(),e=d.prop("offsetWidth")*d.attr("data-scale")>a.core.$outer.find(".lg").width(),(e||f)&&(c.preventDefault(),b={x:c.originalEvent.targetTouches[0].pageX,y:c.originalEvent.targetTouches[0].pageY})}}),a.core.$slide.on("touchmove.lg",function(g){if(a.core.$outer.hasClass("lg-zoomed")){var h,i,j=a.core.$slide.eq(a.core.index).find(".lg-img-wrap");g.preventDefault(),d=!0,c={x:g.originalEvent.targetTouches[0].pageX,y:g.originalEvent.targetTouches[0].pageY},a.core.$outer.addClass("lg-zoom-dragging"),i=f?-Math.abs(j.attr("data-y"))+(c.y-b.y):-Math.abs(j.attr("data-y")),h=e?-Math.abs(j.attr("data-x"))+(c.x-b.x):-Math.abs(j.attr("data-x")),(Math.abs(c.x-b.x)>15||Math.abs(c.y-b.y)>15)&&(a.core.s.useLeftForZoom?j.css({left:h+"px",top:i+"px"}):j.css("transform","translate3d("+h+"px, "+i+"px, 0)"))}}),a.core.$slide.on("touchend.lg",function(){a.core.$outer.hasClass("lg-zoomed")&&d&&(d=!1,a.core.$outer.removeClass("lg-zoom-dragging"),a.touchendZoom(b,c,e,f))})},d.prototype.zoomDrag=function(){var b=this,c={},d={},e=!1,f=!1,g=!1,h=!1;b.core.$slide.on("mousedown.lg.zoom",function(d){var f=b.core.$slide.eq(b.core.index).find(".lg-object");h=f.prop("offsetHeight")*f.attr("data-scale")>b.core.$outer.find(".lg").height(),g=f.prop("offsetWidth")*f.attr("data-scale")>b.core.$outer.find(".lg").width(),b.core.$outer.hasClass("lg-zoomed")&&a(d.target).hasClass("lg-object")&&(g||h)&&(d.preventDefault(),c={x:d.pageX,y:d.pageY},e=!0,b.core.$outer.scrollLeft+=1,b.core.$outer.scrollLeft-=1,b.core.$outer.removeClass("lg-grab").addClass("lg-grabbing"))}),a(window).on("mousemove.lg.zoom",function(a){if(e){var i,j,k=b.core.$slide.eq(b.core.index).find(".lg-img-wrap");f=!0,d={x:a.pageX,y:a.pageY},b.core.$outer.addClass("lg-zoom-dragging"),j=h?-Math.abs(k.attr("data-y"))+(d.y-c.y):-Math.abs(k.attr("data-y")),i=g?-Math.abs(k.attr("data-x"))+(d.x-c.x):-Math.abs(k.attr("data-x")),b.core.s.useLeftForZoom?k.css({left:i+"px",top:j+"px"}):k.css("transform","translate3d("+i+"px, "+j+"px, 0)")}}),a(window).on("mouseup.lg.zoom",function(a){e&&(e=!1,b.core.$outer.removeClass("lg-zoom-dragging"),!f||c.x===d.x&&c.y===d.y||(d={x:a.pageX,y:a.pageY},b.touchendZoom(c,d,g,h)),f=!1),b.core.$outer.removeClass("lg-grabbing").addClass("lg-grab")})},d.prototype.touchendZoom=function(a,b,c,d){var e=this,f=e.core.$slide.eq(e.core.index).find(".lg-img-wrap"),g=e.core.$slide.eq(e.core.index).find(".lg-object"),h=-Math.abs(f.attr("data-x"))+(b.x-a.x),i=-Math.abs(f.attr("data-y"))+(b.y-a.y),j=(e.core.$outer.find(".lg").height()-g.prop("offsetHeight"))/2,k=Math.abs(g.prop("offsetHeight")*Math.abs(g.attr("data-scale"))-e.core.$outer.find(".lg").height()+j),l=(e.core.$outer.find(".lg").width()-g.prop("offsetWidth"))/2,m=Math.abs(g.prop("offsetWidth")*Math.abs(g.attr("data-scale"))-e.core.$outer.find(".lg").width()+l);(Math.abs(b.x-a.x)>15||Math.abs(b.y-a.y)>15)&&(d&&(i<=-k?i=-k:i>=-j&&(i=-j)),c&&(h<=-m?h=-m:h>=-l&&(h=-l)),d?f.attr("data-y",Math.abs(i)):i=-Math.abs(f.attr("data-y")),c?f.attr("data-x",Math.abs(h)):h=-Math.abs(f.attr("data-x")),e.core.s.useLeftForZoom?f.css({left:h+"px",top:i+"px"}):f.css("transform","translate3d("+h+"px, "+i+"px, 0)"))},d.prototype.destroy=function(){var b=this;b.core.$el.off(".lg.zoom"),a(window).off(".lg.zoom"),b.core.$slide.off(".lg.zoom"),b.core.$el.off(".lg.tm.zoom"),b.resetZoom(),clearTimeout(b.zoomabletimeout),b.zoomabletimeout=!1},a.fn.lightGallery.modules.zoom=d}()}),function(a,b){"function"==typeof define&&define.amd?define(["jquery"],function(a){return b(a)}):"object"==typeof exports?module.exports=b(require("jquery")):b(jQuery)}(0,function(a){!function(){"use strict";var b={hash:!0},c=function(c){return this.core=a(c).data("lightGallery"),this.core.s=a.extend({},b,this.core.s),this.core.s.hash&&(this.oldHash=window.location.hash,this.init()),this};c.prototype.init=function(){var b,c=this;c.core.$el.on("onAfterSlide.lg.tm",function(a,b,d){history.replaceState?history.replaceState(null,null,window.location.pathname+window.location.search+"#lg="+c.core.s.galleryId+"&slide="+d):window.location.hash="lg="+c.core.s.galleryId+"&slide="+d}),a(window).on("hashchange.lg.hash",function(){b=window.location.hash;var a=parseInt(b.split("&slide=")[1],10);b.indexOf("lg="+c.core.s.galleryId)>-1?c.core.slide(a,!1,!1):c.core.lGalleryOn&&c.core.destroy()})},c.prototype.destroy=function(){this.core.s.hash&&(this.oldHash&&this.oldHash.indexOf("lg="+this.core.s.galleryId)<0?history.replaceState?history.replaceState(null,null,this.oldHash):window.location.hash=this.oldHash:history.replaceState?history.replaceState(null,document.title,window.location.pathname+window.location.search):window.location.hash="",this.core.$el.off(".lg.hash"))},a.fn.lightGallery.modules.hash=c}()}),function(a,b){"function"==typeof define&&define.amd?define(["jquery"],function(a){return b(a)}):"object"==typeof exports?module.exports=b(require("jquery")):b(jQuery)}(0,function(a){!function(){"use strict";var b={share:!0,facebook:!0,facebookDropdownText:"Facebook",twitter:!0,twitterDropdownText:"Twitter",googlePlus:!0,googlePlusDropdownText:"GooglePlus",pinterest:!0,pinterestDropdownText:"Pinterest"},c=function(c){return this.core=a(c).data("lightGallery"),this.core.s=a.extend({},b,this.core.s),this.core.s.share&&this.init(),this};c.prototype.init=function(){var b=this,c='<span id="lg-share" class="lg-icon"><ul class="lg-dropdown" style="position: absolute;">';c+=b.core.s.facebook?'<li><a id="lg-share-facebook" target="_blank"><span class="lg-icon"></span><span class="lg-dropdown-text">'+this.core.s.facebookDropdownText+"</span></a></li>":"",c+=b.core.s.twitter?'<li><a id="lg-share-twitter" target="_blank"><span class="lg-icon"></span><span class="lg-dropdown-text">'+this.core.s.twitterDropdownText+"</span></a></li>":"",c+=b.core.s.googlePlus?'<li><a id="lg-share-googleplus" target="_blank"><span class="lg-icon"></span><span class="lg-dropdown-text">'+this.core.s.googlePlusDropdownText+"</span></a></li>":"",c+=b.core.s.pinterest?'<li><a id="lg-share-pinterest" target="_blank"><span class="lg-icon"></span><span class="lg-dropdown-text">'+this.core.s.pinterestDropdownText+"</span></a></li>":"",c+="</ul></span>",this.core.$outer.find(".lg-toolbar").append(c),this.core.$outer.find(".lg").append('<div id="lg-dropdown-overlay"></div>'),a("#lg-share").on("click.lg",function(){b.core.$outer.toggleClass("lg-dropdown-active")}),a("#lg-dropdown-overlay").on("click.lg",function(){b.core.$outer.removeClass("lg-dropdown-active")}),b.core.$el.on("onAfterSlide.lg.tm",function(c,d,e){setTimeout(function(){a("#lg-share-facebook").attr("href","https://www.facebook.com/sharer/sharer.php?u="+encodeURIComponent(b.getSahreProps(e,"facebookShareUrl")||window.location.href)),a("#lg-share-twitter").attr("href","https://twitter.com/intent/tweet?text="+b.getSahreProps(e,"tweetText")+"&url="+encodeURIComponent(b.getSahreProps(e,"twitterShareUrl")||window.location.href)),a("#lg-share-googleplus").attr("href","https://plus.google.com/share?url="+encodeURIComponent(b.getSahreProps(e,"googleplusShareUrl")||window.location.href)),a("#lg-share-pinterest").attr("href","http://www.pinterest.com/pin/create/button/?url="+encodeURIComponent(b.getSahreProps(e,"pinterestShareUrl")||window.location.href)+"&media="+encodeURIComponent(b.getSahreProps(e,"src"))+"&description="+b.getSahreProps(e,"pinterestText"))},100)})},c.prototype.getSahreProps=function(a,b){var c="";if(this.core.s.dynamic)c=this.core.s.dynamicEl[a][b];else{var d=this.core.$items.eq(a).attr("href"),e=this.core.$items.eq(a).data(b);c="src"===b?d||e:e}return c},c.prototype.destroy=function(){},a.fn.lightGallery.modules.share=c}()});
 /*! Magnific Popup - v1.1.0 - 2016-02-20
  * http://dimsemenov.com/plugins/magnific-popup/
  * Copyright (c) 2016 Dmitry Semenov; */
@@ -6554,11 +5401,12 @@ String.prototype.punto = function() {
 
     frontpage();
     hamburger();
-    calculator();
     galleries();
     popups();
+    stickers();
     map();
     appointment();
+    certificates();
     $w.trigger('resize');
 
 
@@ -6610,6 +5458,7 @@ String.prototype.punto = function() {
                 nextArrow: '<button class="testimonials__next"></button>'
             });
     }
+
 
     /**
      * Кнопка вызова меню на мобильном устройстве
@@ -6669,194 +5518,10 @@ String.prototype.punto = function() {
 
 
     /**
-     * Калькулятор стоимости
+     * Стикеры
      */
-    function calculator() {
-        var $calc = $(".js-calculator").first(),
-            $tour = $calc.find('.js-tour-select').first(),
-            $room = $calc.find('.js-room-select').first(),
-            $alone = $calc.find('.js-alone'),
-            $comment = $calc.find('.js-comment').first(),
-            $duration = $('.js-duration-select'),
-            $start = $calc.find('.js-start-select').first(),
-            $price = $calc.find('.js-price').first(),
-            fixed_tour = typeof _FIXED_TOUR_ID !== 'undefined' ? _FIXED_TOUR_ID : null,
-            fixed_room = typeof _FIXED_ROOM_ID !== 'undefined' ? _FIXED_ROOM_ID : null,
-            i;
-
-        if (typeof _TOURS_ === 'undefined' || typeof _ROOMS_ === 'undefined') {
-            $calc.hide();
-            $duration.hide();
-            return;
-        }
-
+    function stickers() {
         $('.js-stick').stick_in_parent();
-        $start.datepicker({
-            language: 'ru-RU',
-            autoHide: true,
-            inline: true,
-            container: '.js-start-container'
-        });
-
-        // Заполняем калькулятор данными по номерам
-        for (i=0; i<_ROOMS_.length; i++) {
-            $room.append('<option value="' + _ROOMS_[i].id + '">' + _ROOMS_[i].title + '</option>');
-            if (_ROOMS_[i].id == fixed_room) {
-                $room.prop('disabled', true);
-                $room.val(fixed_room);
-            }
-        }
-
-        // Заполняем калькулятор данными по путёвкам
-        for (i=0; i<_TOURS_.length; i++) {
-            $tour.append('<option value="' + _TOURS_[i].id + '">' + _TOURS_[i].title + '</option>');
-            if (_TOURS_[i].id == fixed_tour) {
-                $tour.prop('disabled', true);
-                $tour.val(fixed_tour);
-            }
-        }
-
-        // Заполняем дату заезда - завтра
-        var tomorrow = moment().add(1, 'd');
-        $start.datepicker('setStartDate', tomorrow.format('DD/MM/YYYY'));
-        $start.datepicker('setDate', tomorrow.format('DD/MM/YYYY'));
-
-        // Пересчитать стоимость
-        function recalc() {
-            var current_tour = $tour.val(),
-                current_room = $room.val(),
-                current_duration = parseInt($duration.first().val()),
-                current_start = $start.val(),
-                alone = $alone.is(':checked'),
-                i, j, item,
-                total_price = null;
-
-            // Проходим все путёвки
-            for (i=0; i<_TOURS_.length; i++) {
-                if (_TOURS_[i].id == current_tour) {
-                    var start_price,
-                        end_price,
-                        change_date,
-                        start_date = moment(current_start, 'DD/MM/YYYY'),
-                        end_date = start_date.clone().add(current_duration, 'd'),
-                        from, to;
-
-                    // Проходим весь прайслист найденной путёвки
-                    for (j=0; j<_TOURS_[i].prices.length; j++) {
-                        item = _TOURS_[i].prices[j];
-                        from = moment(item.from, 'YYYY-MM-DD');
-                        to = moment(item.to, 'YYYY-MM-DD');
-
-                        if (item.room == current_room && item.alone === alone ) {
-                            if (start_date.isBetween(from, to, null, '[]')) {
-                                start_price = item.price;
-                                change_date = to.clone();
-                            }
-                            if (end_date.isBetween(from, to, null, '[]')) {
-                                end_price = item.price;
-                            }
-                        }
-                    }
-                }
-            }
-
-            var duration1 = change_date.diff(start_date, 'd') + 1,
-                duration2 = end_date.diff(change_date, 'd') - 1;
-            total_price = duration1 * start_price + duration2 * end_price;
-
-            if ( isNaN(total_price) ) {
-                $price.html('Ошибка');
-            } else {
-                $price.html(total_price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + ' руб.');
-            }
-        } // update()
-
-        // Задать ограничение на выбор даты заезда
-        function limitStart() {
-            var current_tour = $tour.val(),
-                current_room = $room.val(),
-                current_duration = parseInt($duration.first().val()),
-                current_limit = moment(),
-                i, j, item,
-                total_price = null;
-
-            for (i=0; i<_TOURS_.length; i++) {
-                if (_TOURS_[i].id == current_tour) {
-                    // Проходим весь прайслист найденной путёвки
-                    for (j=0; j<_TOURS_[i].prices.length; j++) {
-                        item = _TOURS_[i].prices[j];
-                        if (item.room == current_room ) {
-                            var limit = moment(item.to, 'YYYY-MM-DD').subtract(current_duration, 'd');
-                            current_limit = moment.max(current_limit, limit);
-                        }
-                    }
-                }
-            }
-
-            $start.datepicker('setEndDate', current_limit.format('DD/MM/YYYY'));
-        }
-
-        // Смена путёвки
-        $tour.change(function(){
-            var current_tour = $tour.val(),
-                i, j;
-
-            $duration.html('');
-
-            for (i=0; i<_TOURS_.length; i++) {
-                if (_TOURS_[i].id == current_tour) {
-                    for (j=0; j<_TOURS_[i].durations.length; j++) {
-                        var duration = _TOURS_[i].durations[j];
-                        $duration.append('<option value="' + _TOURS_[i].durations[j] + '">' + duration + ' ' + declOfNum(duration, ['день', 'дня', 'дней']) + '</option>');
-                    }
-                }
-            }
-
-            $duration.change();
-        });
-
-        // Смена длительности проживания
-        $duration.change(function(){
-            var duration = $(this).val();
-            // скрываем все таблицы
-            $(".js-services-table").addClass('hidden');
-            // показываем таблицу с выбранной продолжительностью
-            $('#duration-' + duration ).removeClass('hidden');
-            // изменяем значение всех селекторов, где есть выбор длительности
-            $duration.val( duration );
-            recalc();
-            limitStart();
-        });
-
-        // Смена даты заезда
-        $start.change(function(){
-            recalc();
-        });
-
-        // Смена номера
-        $room.change(function(){
-            var current_room = $room.val();
-            recalc();
-
-            $comment.html('');
-            $alone.prop('disabled', false);
-            for (i=0; i<_ROOMS_.length; i++) {
-                if (_ROOMS_[i].id == current_room) {
-                    $comment.html(_ROOMS_[i].comment);
-                    if (_ROOMS_[i].max_persons < 2) {
-                        $alone.prop('disabled', true).prop('checked', true);
-                    }
-                }
-            }
-        });
-
-        // Смена галочки "Я хочу жить один"
-        $alone.change(function(){
-            recalc();
-        });
-
-        $tour.trigger('change');
-        $room.trigger('change');
     }
 
 
@@ -6995,6 +5660,8 @@ String.prototype.punto = function() {
                 }
             }
         });
+
+        $.sogazCalculator.init();
     }
 
 
@@ -7269,8 +5936,14 @@ String.prototype.punto = function() {
     }
 
 
-    function declOfNum(number, titles) {
-        var cases = [2, 0, 1, 1, 1, 2];
-        return titles[ (number%100>4 && number%100<20)? 2 : cases[(number%10<5)?number%10:5] ];
+    /**
+     * Сертификаты, дипломы, благодарности
+     */
+    function certificates() {
+        $('#certificates').lightGallery({
+            download: false,
+            share: false,
+            thumbnail: false
+        })
     }
 })( jQuery, window, document );

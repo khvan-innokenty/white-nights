@@ -16,7 +16,7 @@
             <div class="contacts">
 
                 <div class="contacts__left">
-                    <div class="contacts__map" id="map" data-coords="44.580572, 38.067449" data-zoom="15"></div>
+                    <div class="contacts__map" id="map" data-coords="60.119504, 29.951720" data-zoom="12"></div>
                     <script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU" type="text/javascript" data-skip-moving="true"></script>
                 </div>
 
