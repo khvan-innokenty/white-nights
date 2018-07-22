@@ -28,6 +28,7 @@
                     <?php include_once "calculator.php"; ?>
                 </div>
                 <div class="block-with-calculator__content">
+                    <h2>Основные программы</h2>
                     <ul class="tours-block">
                         <li>
                             <a class="tour-card" href="/tour.php">
@@ -118,6 +119,16 @@
                             </a>
                         </li>
                     </ul>
+
+                    <h2>Специальные программы</h2>
+                    <a href="/tours.php" class="tour-card-special" style="background-image: url('/img/tour-hero.jpg')">
+                        <span class="tour-card-special__badge">Специальная программа по направлению</span>
+                        <div class="tour-card-special__title"><span>Диетология</span></div>
+                    </a>
+                    <a href="/tours.php" class="tour-card-special" style="background-image: url('/img/tour-hero.jpg')">
+                        <span class="tour-card-special__badge">Специальная программа по направлению</span>
+                        <div class="tour-card-special__title"><span>Оздоровление организма</span></div>
+                    </a>
                 </div>
             </div>
         </div>

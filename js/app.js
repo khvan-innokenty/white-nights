@@ -53,12 +53,24 @@
 
     $.sogazDatePicker = {
         // Инициализировать
-        init: function() {
-            currDate = new Date( tomorrowTime() );
+        init: function( new_callback ) {
+            var time = tomorrowTime(),
+                endTime = time;
+
+            // Ищем последний допустимый день
+            for (var i=0; i<allowedPeriods.length; i++) {
+                endTime = Math.max(endTime, allowedPeriods[i].to);
+            }
+
+            while (time <= endTime && !this.isAllowedTime(time)) {
+                time += _oneDayInMs;
+            }
+
+            currDate = new Date( time );
             currMonth = currDate.getMonth();
             currYear = currDate.getFullYear();
             operable = false;
-            callback = null;
+            callback = new_callback;
             allowedPeriods = [];
             this.render();
         },
@@ -170,12 +182,10 @@
             this.render();
         },
 
-        setCallback: function ( new_callback ) {
-            callback = new_callback
-        },
-
         // Рендер
         render: function () {
+            if (!currDate) return;
+
             var html = '',
                 startDate = new Date(currYear, currMonth, 1), // Первый день выбранного месяца
                 endDate =  new Date(currYear, currMonth + 1, 0), // Последний день выбранного месяца
@@ -231,8 +241,6 @@
             if (typeof callback === 'function') callback.call();
         }
     };
-
-    $.sogazDatePicker.init();
 })(jQuery);
 (function($){
     var $calc = $(".js-calculator").first(),
@@ -328,7 +336,11 @@
                 $.sogazCalculator.render();
             });
 
-            $.sogazDatePicker.setCallback(function(){
+            $duration.trigger('change');
+            this.hydratePeriods();
+
+            // Инициализация виджета выбора даты, коллбек - расчёт и вывод итоговой цены
+            $.sogazDatePicker.init(function(){
                 var total_price = $.sogazDatePicker.getTotalPrice();
 
                 if ( total_price === null ) {
@@ -338,25 +350,14 @@
                 }
             });
 
-            $duration.trigger('change');
             this.render();
         },
 
-        // Рендер
-        render: function() {
+        hydratePeriods: function() {
             var cRoom = parseInt($room.val()), // Текущий номер
                 cTour = parseInt($tour.val()), // Текущая путёвка
                 cAlone = $alone.is(":checked"),
                 i, j;
-
-            $alone.prop('disabled', false);
-            for (i=0; i<_ROOMS_.length; i++) {
-                if (_ROOMS_[i].id === cRoom) {
-                    $comment.html(_ROOMS_[i].comment);
-                    if (_ROOMS_[i].max_persons < 2)
-                        $alone.prop('disabled', true).prop('checked', true);
-                }
-            }
 
             $.sogazDatePicker.clearPeriods();
 
@@ -377,6 +378,23 @@
                     }
                 }
             }
+        },
+
+        // Рендер
+        render: function() {
+            var cRoom = parseInt($room.val()), // Текущий номер
+                i;
+
+            $alone.prop('disabled', false);
+            for (i=0; i<_ROOMS_.length; i++) {
+                if (_ROOMS_[i].id === cRoom) {
+                    $comment.html(_ROOMS_[i].comment);
+                    if (_ROOMS_[i].max_persons < 2)
+                        $alone.prop('disabled', true).prop('checked', true);
+                }
+            }
+
+            this.hydratePeriods();
 
             $.sogazDatePicker.setDuration( $duration.val() );
             $.sogazDatePicker.render();
